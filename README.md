@@ -32,8 +32,6 @@ And gives the professor immediate, data-grounded recommendations:
 
 ## ⚡ The "Wow" Demo (The Closed Feedback Loop)
 
-The judges can experience the full adaptive cycle in under 3 minutes:
-
 1. **Step 1 (Teacher View)**:
    - Login as **Prof. Vikram Sen** (`teacher@demo.com`).
    - Observe **Recursion at 35.0%** flagged with a **Critical Gap** alert.
