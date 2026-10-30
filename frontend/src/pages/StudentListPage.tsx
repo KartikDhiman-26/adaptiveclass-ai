@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Filter, RefreshCw, User, Award, AlertTriangle } from 'lucide-react';
+import { Search, RefreshCw, GraduationCap } from 'lucide-react';
 import { StudentProfileResponse } from '../types';
 import { StudentProfileModal } from '../components/StudentProfileModal';
 import { api } from '../api';
@@ -38,30 +38,44 @@ export const StudentListPage: React.FC<StudentListPageProps> = ({
     return matchesSearch && matchesTier;
   });
 
+  const getTierBadge = (tier: string) => {
+    const t = tier.toLowerCase();
+    if (t.includes('advanced')) return 'bg-[#0B1B14] text-emerald-300 border-[#20372B]';
+    if (t.includes('on track')) return 'bg-[#14231C] text-emerald-200 border-[#20372B]';
+    if (t.includes('support')) return 'bg-amber-950/60 text-amber-300 border-amber-800';
+    return 'bg-[#261214] text-rose-300 border-[#5C1D20]';
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* 1. Masthead & Controls */}
+      <div className="bg-[#202020] rounded-2xl border border-[#343434] p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Student Roster & Individual Mastery</h1>
-          <p className="text-xs text-slate-500 mt-0.5">Full cohort of 80 enrolled engineering students</p>
+          <div className="flex items-center space-x-2 text-xs font-mono text-[#C12A29] font-semibold mb-1">
+            <span>Enrolled Roster Intelligence</span>
+            <span>•</span>
+            <span>80 Students</span>
+          </div>
+          <h1 className="text-2xl font-bold text-[#F5F2EF]">Student Roster & Diagnostic Telemetry</h1>
+          <p className="text-xs text-[#B7B3B0] mt-0.5">Filter by performance tier or search individual learners</p>
         </div>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+            <Search className="w-4 h-4 text-[#898582] absolute left-3 top-1/2 transform -translate-y-1/2" />
             <input
               type="text"
               placeholder="Search student or roll no..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-xs w-64 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="pl-9 pr-4 py-2 bg-[#171717] border border-[#343434] rounded-xl text-xs text-[#F5F2EF] placeholder-[#898582] focus:outline-none focus:ring-1 focus:ring-[#A31C1B] w-64"
             />
           </div>
 
           <select
             value={selectedTier}
             onChange={(e) => setSelectedTier(e.target.value)}
-            className="border border-slate-200 rounded-lg py-2 px-3 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className="border border-[#343434] rounded-xl py-2 px-3 text-xs bg-[#171717] text-[#F5F2EF] focus:outline-none focus:ring-1 focus:ring-[#A31C1B]"
           >
             <option value="all">All Learning Tiers</option>
             <option value="advanced">Advanced (≥85%)</option>
@@ -73,77 +87,112 @@ export const StudentListPage: React.FC<StudentListPageProps> = ({
           <button
             onClick={onRefresh}
             disabled={isLoading}
-            className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600"
+            className="p-2 border border-[#343434] rounded-xl bg-[#171717] hover:bg-[#202020] text-[#B7B3B0] disabled:opacity-50"
+            title="Refresh student roster"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+      {/* 2. Students Table */}
+      <div className="bg-[#202020] rounded-2xl border border-[#343434] overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-600 uppercase font-semibold border-b border-slate-200">
+            <thead className="bg-[#171717] text-[#898582] uppercase font-mono text-[10px] border-b border-[#343434]">
               <tr>
-                <th className="py-3 px-4">Student</th>
-                <th className="py-3 px-4">Roll Number</th>
-                <th className="py-3 px-4">Overall Mastery</th>
-                <th className="py-3 px-4">Status Tier</th>
-                <th className="py-3 px-4">Weakest Concept</th>
-                <th className="py-3 px-4 text-right">Actions</th>
+                <th className="py-3.5 px-4">Student</th>
+                <th className="py-3.5 px-4">Roll Number</th>
+                <th className="py-3.5 px-4">Cumulative Mastery</th>
+                <th className="py-3.5 px-4">Achievement Tier</th>
+                <th className="py-3.5 px-4">Identified Gap</th>
+                <th className="py-3.5 px-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filtered.map(s => (
-                <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="py-3 px-4">
-                    <div className="font-semibold text-slate-900">{s.name}</div>
-                    <div className="text-[11px] text-slate-400">{s.email}</div>
-                  </td>
-                  <td className="py-3 px-4 text-slate-600 font-mono">
-                    {s.roll_number}
-                  </td>
-                  <td className="py-3 px-4 font-bold text-slate-900">
-                    {s.overall_mastery}%
-                  </td>
-                  <td className="py-3 px-4">
-                    <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${
-                      s.status_label === 'Advanced' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                      s.status_label === 'On Track' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                      s.status_label === 'Needs Support' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                      'bg-rose-50 text-rose-700 border border-rose-200'
-                    }`}>
-                      {s.status_label}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4">
-                    <span className="font-medium text-slate-700">
-                      {s.weak_concept} ({s.weak_mastery}%)
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    <button
-                      onClick={() => handleOpenProfile(s.id)}
-                      className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-xs font-semibold transition-colors"
-                    >
-                      View Profile
-                    </button>
-                  </td>
-                </tr>
-              ))}
+            <tbody className="divide-y divide-[#343434] font-mono text-[#B7B3B0]">
+              {filtered.map(s => {
+                const isDemoAarav = s.email === 'student@demo.com';
+                const isDemoPriya = s.email === 'advanced@demo.com';
+
+                return (
+                  <tr key={s.id} className="hover:bg-[#0B1B14] transition-colors">
+                    <td className="py-3.5 px-4 font-sans">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-semibold text-[#F5F2EF]">{s.name}</span>
+                        {isDemoAarav && (
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#261214] text-rose-300 border border-[#5C1D20]">
+                            Demo Student
+                          </span>
+                        )}
+                        {isDemoPriya && (
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#0B1B14] text-emerald-300 border border-[#20372B]">
+                            Demo Scholar
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-[#898582] font-mono">{s.email}</div>
+                    </td>
+                    <td className="py-3.5 px-4 text-[#898582]">
+                      {s.roll_number}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-bold text-[#F5F2EF] tabular-nums text-sm">
+                          {s.overall_mastery}%
+                        </span>
+                        <div className="w-16 bg-[#06110C] rounded-full h-1.5 overflow-hidden hidden sm:block border border-[#343434]">
+                          <div 
+                            className="h-full rounded-full bg-[#A31C1B]"
+                            style={{ width: `${s.overall_mastery}%` }}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] uppercase font-bold border ${getTierBadge(s.status_label)}`}>
+                        {s.status_label}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span className="text-[#C12A29] font-medium">
+                        {s.weak_concept}
+                      </span>
+                      {s.weak_mastery !== undefined && (
+                        <span className="text-[#898582] text-[11px] ml-1">
+                          ({s.weak_mastery}%)
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <div className="flex items-center justify-end space-x-2">
+                        <button
+                          onClick={() => handleOpenProfile(s.id)}
+                          className="px-3 py-1 rounded-lg bg-[#171717] hover:bg-[#202020] border border-[#343434] text-[#F5F2EF] hover:border-[#A31C1B] hover:text-[#C12A29] text-xs font-semibold transition-colors"
+                        >
+                          Profile
+                        </button>
+                        <button
+                          onClick={() => onSimulateStudent(s.id)}
+                          title="Simulate student session"
+                          className="px-2.5 py-1 rounded-lg bg-[#261214] hover:bg-[#3B1517] text-[#C12A29] border border-[#5C1D20] text-xs font-semibold transition-colors"
+                        >
+                          <GraduationCap className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
 
+      {/* Profile Modal */}
       <StudentProfileModal
         profile={selectedProfile}
         onClose={() => setSelectedProfile(null)}
-        onSimulateStudentPractice={(id) => {
-          setSelectedProfile(null);
-          onSimulateStudent(id);
-        }}
+        onSimulateStudentPractice={onSimulateStudent}
       />
     </div>
   );

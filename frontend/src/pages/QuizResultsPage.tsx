@@ -1,7 +1,6 @@
 import React from 'react';
 import { 
-  CheckCircle2, TrendingUp, Users, ArrowRight, Award, 
-  Sparkles, School, RefreshCw, BarChart2, ShieldCheck 
+  ArrowRight, Award, Sparkles, School
 } from 'lucide-react';
 import { QuizSubmitResponse } from '../types';
 
@@ -19,120 +18,117 @@ export const QuizResultsPage: React.FC<QuizResultsPageProps> = ({
   return (
     <div className="max-w-3xl mx-auto px-4 py-12 space-y-8">
       {/* 1. Results Celebration Card */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-md text-center space-y-4 relative overflow-hidden">
-        <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
+      <div className="bg-[#202020] rounded-2xl border border-[#343434] p-8 shadow-xl text-center space-y-4 relative overflow-hidden">
+        <div className="w-16 h-16 rounded-2xl bg-[#0B1B14] border border-[#20372B] text-emerald-400 flex items-center justify-center mx-auto shadow-inner">
           <Award className="w-8 h-8" />
         </div>
 
         <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+          <span className="text-xs font-bold uppercase font-mono tracking-wider text-emerald-300 bg-[#0B1B14] px-3 py-1 rounded-full border border-[#20372B]">
             Practice Session Completed
           </span>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-2">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-[#F5F2EF] mt-2">
             Measurable Mastery Improvement!
           </h2>
-          <p className="text-sm text-slate-500 max-w-md mx-auto mt-1">
+          <p className="text-sm text-[#B7B3B0] max-w-md mx-auto mt-1 font-mono">
             Your adaptive practice performance has been computed and recorded in PostgreSQL.
           </p>
         </div>
 
         {/* Score metrics */}
         <div className="grid grid-cols-2 gap-4 max-w-md mx-auto pt-2">
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-            <span className="text-xs text-slate-500">Quiz Accuracy</span>
-            <p className="text-2xl font-bold text-slate-900 mt-0.5">{results.accuracy}%</p>
-            <span className="text-[11px] text-slate-400">({results.score} of {results.total_questions} correct)</span>
+          <div className="p-3 bg-[#171717] rounded-xl border border-[#343434] font-mono">
+            <span className="text-xs text-[#898582]">Quiz Accuracy</span>
+            <p className="text-2xl font-bold text-[#F5F2EF] mt-0.5 tabular-nums">{results.accuracy}%</p>
+            <span className="text-[11px] text-[#898582]">({results.score} of {results.total_questions} correct)</span>
           </div>
 
-          <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-200">
-            <span className="text-xs text-indigo-600 font-semibold">Mastery Gain</span>
-            <p className="text-2xl font-bold text-indigo-700 mt-0.5">+{results.mastery_change}%</p>
-            <span className="text-[11px] text-indigo-500 font-medium">Weighted Recalculation</span>
+          <div className="p-3 bg-[#0B1B14] rounded-xl border border-[#20372B] font-mono">
+            <span className="text-xs text-emerald-400 font-semibold">Mastery Gain</span>
+            <p className="text-2xl font-bold text-emerald-300 mt-0.5 tabular-nums">+{results.mastery_change}%</p>
+            <span className="text-[11px] text-emerald-400/80 font-medium">Weighted Recalculation</span>
           </div>
         </div>
 
         {/* Before vs After Mastery Comparison */}
-        <div className="p-4 bg-slate-900 text-white rounded-xl border border-slate-800 text-left max-w-lg mx-auto space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-300 font-medium">{results.concept_name} Mastery (Before):</span>
-            <span className="text-sm font-bold text-rose-400">{results.old_mastery}% (Critical Gap)</span>
+        <div className="p-4 bg-[#171717] text-[#F5F2EF] rounded-xl border border-[#343434] text-left max-w-lg mx-auto space-y-3 font-mono">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[#898582] font-medium">{results.concept_name} Mastery (Before):</span>
+            <span className="font-bold text-[#C12A29]">{results.old_mastery}% (Critical Gap)</span>
           </div>
 
-          <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
-            <div className="bg-rose-500 h-full rounded-full" style={{ width: `${results.old_mastery}%` }}></div>
+          <div className="w-full bg-[#06110C] rounded-full h-2 overflow-hidden border border-[#343434]">
+            <div className="bg-[#A31C1B] h-full rounded-full" style={{ width: `${results.old_mastery}%` }} />
           </div>
 
-          <div className="flex items-center justify-between pt-1">
-            <span className="text-xs text-slate-300 font-medium">{results.concept_name} Mastery (After Practice):</span>
-            <span className="text-base font-bold text-emerald-400">{results.new_mastery}% (Developing)</span>
+          <div className="flex items-center justify-between pt-1 text-xs">
+            <span className="text-[#898582] font-medium">{results.concept_name} Mastery (After Practice):</span>
+            <span className="font-bold text-emerald-300">{results.new_mastery}% (Developing)</span>
           </div>
 
-          <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
-            <div className="bg-emerald-500 h-full rounded-full transition-all duration-700" style={{ width: `${results.new_mastery}%` }}></div>
+          <div className="w-full bg-[#06110C] rounded-full h-2.5 overflow-hidden border border-[#343434]">
+            <div className="bg-emerald-400 h-full rounded-full transition-all duration-700" style={{ width: `${results.new_mastery}%` }} />
           </div>
         </div>
       </div>
 
-      {/* 2. THE "WOW" DEMO: Classroom-Level Closed Feedback Loop */}
-      <div className="bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-950 text-white rounded-2xl p-6 shadow-lg border border-indigo-800/60 relative overflow-hidden">
-        <div className="flex items-center space-x-2 text-xs font-bold text-indigo-300 uppercase tracking-wider mb-2">
-          <Sparkles className="w-4 h-4 text-indigo-400" />
+      {/* 2. Closed Feedback Loop Impact Card */}
+      <div className="bg-[#202020] text-[#F5F2EF] rounded-2xl p-6 sm:p-7 shadow-xl border border-[#343434] relative overflow-hidden">
+        <div className="flex items-center space-x-2 text-xs font-bold font-mono text-[#C12A29] uppercase tracking-wider mb-2">
+          <Sparkles className="w-4 h-4 text-[#C12A29]" />
           <span>Real-Time Classroom Impact</span>
         </div>
 
-        <h3 className="text-xl font-bold text-white mb-2">
+        <h3 className="text-xl font-bold text-[#F5F2EF] mb-2">
           Your Individual Practice Shifted the Entire Class Intelligence
         </h3>
 
-        <p className="text-xs text-slate-300 leading-relaxed mb-4">
+        <p className="text-xs text-[#B7B3B0] leading-relaxed mb-4">
           Because student data is interconnected, your mastery gain crossed the 40% support threshold, directly improving the professor's live classroom metrics.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 my-4">
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-            <span className="text-xs text-slate-300">Class {results.concept_name} Average</span>
+          <div className="bg-[#171717] rounded-xl p-4 border border-[#343434] font-mono">
+            <span className="text-xs text-[#898582]">Class {results.concept_name} Average</span>
             <div className="flex items-baseline space-x-2 mt-1">
-              <span className="text-2xl font-black text-emerald-400">{results.new_class_recursion_average}%</span>
-              <span className="text-xs text-slate-400">rose from 35.0%</span>
+              <span className="text-2xl font-bold text-emerald-300 tabular-nums">{results.new_class_recursion_average}%</span>
+              <span className="text-xs text-[#898582]">rose from 35.0%</span>
             </div>
-            <p className="text-[11px] text-slate-300 mt-1">Recalculated from all 80 students in PostgreSQL</p>
+            <p className="text-[11px] text-[#898582] mt-1 font-sans">Recalculated from all 80 students in PostgreSQL</p>
           </div>
 
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-            <span className="text-xs text-slate-300">Students Needing Support in Recursion</span>
+          <div className="bg-[#171717] rounded-xl p-4 border border-[#343434] font-mono">
+            <span className="text-xs text-[#898582]">Students Needing Support</span>
             <div className="flex items-baseline space-x-2 mt-1">
-              <span className="text-2xl font-black text-emerald-400">{results.new_recursion_support_count}</span>
-              <span className="text-xs text-slate-400">decreased from 23!</span>
+              <span className="text-2xl font-bold text-[#C12A29] tabular-nums">{results.new_recursion_support_count}</span>
+              <span className="text-xs text-[#898582]">dropped from 23</span>
             </div>
-            <p className="text-[11px] text-slate-300 mt-1">Aarav Sharma successfully uplifted</p>
+            <p className="text-[11px] text-[#898582] mt-1 font-sans">1 student exited the critical alert zone</p>
           </div>
         </div>
 
-        {/* Primary CTA: Switch back to Teacher Dashboard */}
-        <div className="pt-4 border-t border-indigo-800/80 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <span className="text-xs text-slate-400">
-            Click below to inspect the updated live Teacher Dashboard:
-          </span>
+        <p className="text-xs text-[#898582] font-mono italic">
+          💡 {results.impact_message}
+        </p>
+
+        {/* Action Doors */}
+        <div className="mt-6 pt-4 border-t border-[#343434] flex flex-col sm:flex-row items-center justify-between gap-3">
+          <button
+            onClick={onReturnToStudentDashboard}
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-[#343434] bg-[#171717] hover:bg-[#202020] text-xs text-[#B7B3B0] hover:text-[#F5F2EF] font-medium transition-colors"
+          >
+            Return to Learning Portal
+          </button>
 
           <button
             onClick={onViewTeacherDashboard}
-            className="w-full sm:w-auto px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center space-x-2"
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#A31C1B] hover:bg-[#C12A29] text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center space-x-2"
           >
-            <School className="w-4 h-4" />
-            <span>View Updated Teacher Dashboard</span>
-            <ArrowRight className="w-4 h-4 ml-1" />
+            <School className="w-4 h-4 text-white" />
+            <span>Verify Live on Instructor Dashboard</span>
+            <ArrowRight className="w-4 h-4 ml-0.5" />
           </button>
         </div>
-      </div>
-
-      {/* Secondary Button */}
-      <div className="text-center">
-        <button
-          onClick={onReturnToStudentDashboard}
-          className="text-xs text-slate-500 hover:text-slate-800 font-semibold underline"
-        >
-          Return to Student Dashboard
-        </button>
       </div>
     </div>
   );

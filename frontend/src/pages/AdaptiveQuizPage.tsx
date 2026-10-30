@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   CheckCircle2, XCircle, ArrowRight, Zap, RefreshCw, 
-  HelpCircle, ChevronRight, Award, ShieldAlert, Sparkles 
+  ShieldAlert, Sparkles 
 } from 'lucide-react';
 import { QuestionOut, QuizSubmitResponse } from '../types';
 import { api } from '../api';
@@ -26,7 +26,6 @@ export const AdaptiveQuizPage: React.FC<AdaptiveQuizPageProps> = ({
   onCancel
 }) => {
   const [loading, setLoading] = useState(true);
-  const [sessionId, setSessionId] = useState('');
   const [conceptName, setConceptName] = useState('Recursion');
   const [targetConceptId, setTargetConceptId] = useState<number>(1);
   const [currentQuestion, setCurrentQuestion] = useState<QuestionOut | null>(null);
@@ -48,15 +47,10 @@ export const AdaptiveQuizPage: React.FC<AdaptiveQuizPageProps> = ({
   const [history, setHistory] = useState<AnswerHistory[]>([]);
   const [isSubmittingFinal, setIsSubmittingFinal] = useState(false);
 
-  useEffect(() => {
-    startQuiz();
-  }, [studentId, conceptId]);
-
   const startQuiz = async () => {
     setLoading(true);
     try {
       const res = await api.startAdaptiveQuiz(studentId, conceptId);
-      setSessionId(res.session_id);
       setConceptName(res.concept_name);
       setTargetConceptId(res.concept_id);
       setCurrentQuestion(res.current_question);
@@ -74,69 +68,78 @@ export const AdaptiveQuizPage: React.FC<AdaptiveQuizPageProps> = ({
     }
   };
 
+  useEffect(() => {
+    startQuiz();
+  }, [studentId, conceptId]);
+
   const handleSelectOption = (opt: string) => {
     if (isAnswerSubmitted) return;
     setSelectedOption(opt);
   };
 
   const handleSubmitAnswer = async () => {
-    if (!selectedOption || !currentQuestion) return;
+    if (!selectedOption || !currentQuestion || isAnswerSubmitted) return;
 
-    setLoading(true);
     try {
-      const answeredIds = history.map(h => h.question_id);
-      const res = await api.getNextAdaptiveQuestion({
+      const payload = {
         student_id: studentId,
         concept_id: targetConceptId,
         current_question_id: currentQuestion.question_id,
         selected_option: selectedOption,
         current_difficulty: difficulty,
         question_index: questionIndex,
-        answered_question_ids: answeredIds
+        answered_question_ids: history.map(h => h.question_id)
+      };
+
+      const res = await api.getNextAdaptiveQuestion(payload);
+
+      setAnswerFeedback({
+        is_correct: res.is_correct,
+        correct_answer: res.correct_answer,
+        explanation: res.explanation,
+        difficulty_change: res.difficulty_change,
+        next_question: res.next_question,
+        is_quiz_complete: res.is_quiz_complete
       });
 
-      setAnswerFeedback(res);
       setIsAnswerSubmitted(true);
 
-      const newHistoryItem: AnswerHistory = {
-        question_id: currentQuestion.question_id,
-        selected_answer: selectedOption,
-        is_correct: res.is_correct
-      };
-      setHistory(prev => [...prev, newHistoryItem]);
+      setHistory(prev => [
+        ...prev,
+        {
+          question_id: currentQuestion.question_id,
+          selected_answer: selectedOption,
+          is_correct: res.is_correct
+        }
+      ]);
     } catch (err) {
-      console.error("Failed to process question answer:", err);
-    } finally {
-      setLoading(false);
+      console.error("Error submitting answer:", err);
     }
   };
 
-  const handleNextOrFinish = async () => {
+  const handleProceedNext = async () => {
     if (!answerFeedback) return;
 
-    if (answerFeedback.is_quiz_complete || questionIndex >= totalQuestions || !answerFeedback.next_question) {
-      // Complete quiz and submit to backend for dynamic mastery update
+    if (answerFeedback.is_quiz_complete || questionIndex >= totalQuestions) {
       setIsSubmittingFinal(true);
       try {
-        const finalHistory = [...history];
-        const submitPayload = {
+        const finalPayload = {
           student_id: studentId,
           concept_id: targetConceptId,
-          quiz_title: `Adaptive Practice: ${conceptName}`,
-          answers: finalHistory
+          quiz_title: `${conceptName} Adaptive Mastery Assessment`,
+          answers: history
         };
-        const result = await api.submitQuiz(submitPayload);
-        onCompleteQuiz(result);
+        const submitRes = await api.submitQuiz(finalPayload);
+        onCompleteQuiz(submitRes);
       } catch (err) {
-        console.error("Failed to submit completed quiz:", err);
+        console.error("Error submitting final quiz:", err);
       } finally {
         setIsSubmittingFinal(false);
       }
-    } else {
-      // Advance to next dynamically selected question
+    } else if (answerFeedback.next_question) {
       setCurrentQuestion(answerFeedback.next_question);
-      setDifficulty(answerFeedback.next_question.difficulty);
       setQuestionIndex(prev => prev + 1);
+      setDifficulty(answerFeedback.next_question.difficulty);
       setSelectedOption(null);
       setIsAnswerSubmitted(false);
       setAnswerFeedback(null);
@@ -145,21 +148,21 @@ export const AdaptiveQuizPage: React.FC<AdaptiveQuizPageProps> = ({
 
   if (loading && !currentQuestion) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
-        <RefreshCw className="w-8 h-8 text-indigo-600 animate-spin mx-auto mb-3" />
-        <p className="text-sm text-slate-500 font-medium">Initializing Adaptive Quiz engine from PostgreSQL questions...</p>
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center space-y-3">
+        <RefreshCw className="w-8 h-8 text-[#C12A29] animate-spin mx-auto" />
+        <p className="text-sm text-[#898582] font-mono">Initializing Adaptive Practice engine from PostgreSQL questions...</p>
       </div>
     );
   }
 
   if (!currentQuestion) {
     return (
-      <div className="max-w-md mx-auto px-4 py-16 text-center">
-        <ShieldAlert className="w-10 h-10 text-rose-500 mx-auto mb-2" />
-        <p className="text-sm text-slate-700 font-semibold">No questions found for this concept.</p>
+      <div className="max-w-md mx-auto px-4 py-16 text-center space-y-3">
+        <ShieldAlert className="w-10 h-10 text-rose-400 mx-auto" />
+        <p className="text-sm text-[#F5F2EF] font-semibold">No questions found for this concept.</p>
         <button
           onClick={onCancel}
-          className="mt-4 px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold"
+          className="mt-4 px-4 py-2 rounded-xl bg-[#202020] border border-[#343434] text-[#F5F2EF] text-xs font-semibold hover:bg-[#171717]"
         >
           Return to Dashboard
         </button>
@@ -170,57 +173,57 @@ export const AdaptiveQuizPage: React.FC<AdaptiveQuizPageProps> = ({
   const getDifficultyBadge = () => {
     switch (difficulty.toLowerCase()) {
       case 'beginner':
-        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+        return 'bg-[#0B1B14] text-emerald-300 border-[#20372B]';
       case 'intermediate':
-        return 'bg-blue-50 text-blue-700 border-blue-200';
+        return 'bg-[#14231C] text-emerald-200 border-[#20372B]';
       case 'advanced':
-        return 'bg-purple-50 text-purple-700 border-purple-200';
+        return 'bg-[#261214] text-rose-300 border-[#5C1D20]';
       default:
-        return 'bg-slate-100 text-slate-700 border-slate-200';
+        return 'bg-[#171717] text-[#B7B3B0] border-[#343434]';
     }
   };
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       {/* Quiz Container Card */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden">
+      <div className="bg-[#202020] rounded-2xl border border-[#343434] shadow-xl overflow-hidden">
         {/* Top Progress & Difficulty Bar */}
-        <div className="bg-slate-900 text-white p-5 border-b border-slate-800">
+        <div className="bg-[#171717] text-[#F5F2EF] p-5 border-b border-[#343434]">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <div className="flex items-center space-x-2">
-              <span className="text-xs text-indigo-300 font-bold uppercase tracking-wider">
+              <span className="text-xs text-[#C12A29] font-mono font-bold uppercase tracking-wider">
                 {conceptName} Adaptive Practice
               </span>
-              <span className="text-slate-500">•</span>
-              <span className="text-xs text-slate-300 font-medium">
+              <span className="text-[#898582]">•</span>
+              <span className="text-xs text-[#B7B3B0] font-mono">
                 Question {questionIndex} of {totalQuestions}
               </span>
             </div>
 
             <div className="flex items-center space-x-2">
-              <span className="text-[11px] text-slate-400">Current Difficulty:</span>
-              <span className={`text-xs font-bold uppercase px-2.5 py-0.5 rounded-full border ${getDifficultyBadge()}`}>
+              <span className="text-[11px] text-[#898582] font-mono">Current Difficulty:</span>
+              <span className={`text-xs font-bold uppercase font-mono px-2.5 py-0.5 rounded-full border ${getDifficultyBadge()}`}>
                 {difficulty}
               </span>
             </div>
           </div>
 
           {/* Animated Progress Bar */}
-          <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+          <div className="w-full bg-[#06110C] rounded-full h-1.5 overflow-hidden border border-[#343434]">
             <div
-              className="bg-indigo-500 h-full transition-all duration-300 rounded-full"
+              className="bg-[#A31C1B] h-full transition-all duration-300 rounded-full"
               style={{ width: `${(questionIndex / totalQuestions) * 100}%` }}
-            ></div>
+            />
           </div>
         </div>
 
         {/* Question Area */}
-        <div className="p-6 space-y-6">
+        <div className="p-6 sm:p-7 space-y-6">
           <div className="space-y-1">
-            <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wide">
+            <span className="text-xs font-mono font-semibold text-[#C12A29] uppercase tracking-wide">
               Question #{questionIndex}
             </span>
-            <h3 className="text-lg font-bold text-slate-900 leading-snug">
+            <h3 className="text-lg font-bold text-[#F5F2EF] leading-snug">
               {currentQuestion.question_text}
             </h3>
           </div>
@@ -237,13 +240,13 @@ export const AdaptiveQuizPage: React.FC<AdaptiveQuizPageProps> = ({
               const isCorrectOpt = answerFeedback && answerFeedback.correct_answer.toUpperCase() === opt.key;
               const isWrongSelected = isAnswerSubmitted && isSelected && !answerFeedback?.is_correct;
 
-              let cardStyle = 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50/50';
+              let cardStyle = 'border-[#343434] bg-[#171717] hover:bg-[#0B1B14] hover:border-[#20372B] text-[#B7B3B0]';
               if (isSelected && !isAnswerSubmitted) {
-                cardStyle = 'border-indigo-600 bg-indigo-50/50 ring-1 ring-indigo-500';
+                cardStyle = 'border-[#A31C1B] bg-[#261214] text-white ring-1 ring-[#A31C1B]';
               } else if (isCorrectOpt) {
-                cardStyle = 'border-emerald-500 bg-emerald-50 text-emerald-950 font-medium ring-1 ring-emerald-500';
+                cardStyle = 'border-emerald-500 bg-[#0B1B14] text-emerald-200 ring-1 ring-emerald-500 font-medium';
               } else if (isWrongSelected) {
-                cardStyle = 'border-rose-500 bg-rose-50 text-rose-950 ring-1 ring-rose-500';
+                cardStyle = 'border-rose-500 bg-[#261214] text-rose-200 ring-1 ring-rose-500';
               }
 
               return (
@@ -253,96 +256,101 @@ export const AdaptiveQuizPage: React.FC<AdaptiveQuizPageProps> = ({
                   className={`p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${cardStyle}`}
                 >
                   <div className="flex items-center space-x-3">
-                    <span className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${
+                    <span className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs font-mono ${
                       isSelected && !isAnswerSubmitted
-                        ? 'bg-indigo-600 text-white'
+                        ? 'bg-[#A31C1B] text-white'
                         : isCorrectOpt
-                        ? 'bg-emerald-600 text-white'
+                        ? 'bg-emerald-500 text-slate-950'
                         : isWrongSelected
-                        ? 'bg-rose-600 text-white'
-                        : 'bg-slate-100 text-slate-700'
+                        ? 'bg-[#7F1717] text-white'
+                        : 'bg-[#202020] text-[#B7B3B0]'
                     }`}>
                       {opt.key}
                     </span>
-                    <span className="text-sm">{opt.text}</span>
+                    <span className="text-xs sm:text-sm">{opt.text}</span>
                   </div>
 
-                  {isCorrectOpt && (
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-                  )}
-                  {isWrongSelected && (
-                    <XCircle className="w-5 h-5 text-rose-600 flex-shrink-0" />
-                  )}
+                  {isCorrectOpt && <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />}
+                  {isWrongSelected && <XCircle className="w-5 h-5 text-rose-400 flex-shrink-0" />}
                 </div>
               );
             })}
           </div>
 
-          {/* Feedback Card (After Answer Submission) */}
-          {isAnswerSubmitted && answerFeedback && (
-            <div className={`p-4 rounded-xl border animate-in fade-in duration-300 ${
+          {/* Feedback Explanation Card */}
+          {answerFeedback && (
+            <div className={`p-4 sm:p-5 rounded-xl border text-xs sm:text-sm animate-in fade-in duration-200 space-y-2 ${
               answerFeedback.is_correct
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
-                : 'bg-rose-50 border-rose-200 text-rose-950'
+                ? 'bg-[#0B1B14] border-[#20372B] text-emerald-200'
+                : 'bg-[#261214] border-[#5C1D20] text-rose-200'
             }`}>
-              <div className="flex items-center space-x-2 font-bold text-sm mb-1.5">
+              <div className="flex items-center space-x-2 font-bold font-mono">
                 {answerFeedback.is_correct ? (
                   <>
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                    <span>Correct Answer!</span>
-                    <span className="text-xs bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full ml-2">
-                      Adaptive Difficulty: {answerFeedback.difficulty_change === 'increased' ? 'Escalated to Next Level' : 'Maintained'}
-                    </span>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span>Correct Analysis!</span>
                   </>
                 ) : (
                   <>
-                    <XCircle className="w-5 h-5 text-rose-600" />
-                    <span>Incorrect — Let's Reinforce This Concept</span>
-                    <span className="text-xs bg-rose-200 text-rose-900 px-2 py-0.5 rounded-full ml-2">
-                      Adaptive Support Triggered
-                    </span>
+                    <XCircle className="w-4 h-4 text-[#C12A29]" />
+                    <span>Misconception Detected. Correct Answer is {answerFeedback.correct_answer}</span>
                   </>
                 )}
               </div>
 
-              <p className="text-xs text-slate-700 leading-relaxed mt-2 bg-white/70 p-2.5 rounded-lg border border-slate-200/60">
-                <strong>Explanation:</strong> {answerFeedback.explanation}
+              <p className="text-xs text-[#B7B3B0] leading-relaxed font-sans">
+                {answerFeedback.explanation}
               </p>
+
+              <div className="pt-2 flex items-center space-x-2 text-xs font-mono text-[#898582]">
+                <Zap className="w-3.5 h-3.5 text-[#C12A29]" />
+                <span>
+                  Adaptive Engine: Difficulty {answerFeedback.difficulty_change} for next question.
+                </span>
+              </div>
             </div>
           )}
-        </div>
 
-        {/* Footer Actions */}
-        <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex items-center justify-between">
-          <button
-            onClick={onCancel}
-            className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
-          >
-            Cancel Practice
-          </button>
+          {/* Actions Bar */}
+          <div className="pt-4 border-t border-[#343434] flex items-center justify-between">
+            <button
+              onClick={onCancel}
+              className="text-xs font-mono text-[#898582] hover:text-[#F5F2EF] transition-colors"
+            >
+              Cancel Practice
+            </button>
 
-          {!isAnswerSubmitted ? (
-            <button
-              onClick={handleSubmitAnswer}
-              disabled={!selectedOption || loading}
-              className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center space-x-1.5"
-            >
-              <span>Submit Answer</span>
-            </button>
-          ) : (
-            <button
-              onClick={handleNextOrFinish}
-              disabled={isSubmittingFinal}
-              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all flex items-center space-x-1.5"
-            >
-              <span>
-                {questionIndex >= totalQuestions || answerFeedback?.is_quiz_complete
-                  ? (isSubmittingFinal ? 'Calculating Mastery...' : 'Finish & View Class Impact')
-                  : 'Next Question (Adapted)'}
-              </span>
-              <ArrowRight className="w-4 h-4 ml-1" />
-            </button>
-          )}
+            {!isAnswerSubmitted ? (
+              <button
+                onClick={handleSubmitAnswer}
+                disabled={!selectedOption}
+                className="px-6 py-2.5 rounded-xl bg-[#A31C1B] hover:bg-[#C12A29] disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs shadow-sm transition-all flex items-center space-x-1.5"
+              >
+                <span>Check Answer</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                onClick={handleProceedNext}
+                disabled={isSubmittingFinal}
+                className="px-6 py-2.5 rounded-xl bg-[#A31C1B] hover:bg-[#C12A29] text-white font-bold text-xs shadow-sm transition-all flex items-center space-x-1.5"
+              >
+                {isSubmittingFinal ? (
+                  <span>Recording in PostgreSQL...</span>
+                ) : questionIndex >= totalQuestions ? (
+                  <>
+                    <span>Submit Assessment</span>
+                    <Sparkles className="w-4 h-4" />
+                  </>
+                ) : (
+                  <>
+                    <span>Next Adaptive Question</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

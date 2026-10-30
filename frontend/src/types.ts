@@ -141,3 +141,41 @@ export interface StudentRecommendation {
   estimated_minutes: number;
   difficulty_entry: string;
 }
+
+
+export interface SubjectTopic {
+  id: string | number;
+  name: string;
+  mastery: number;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  status: 'Critical Gap' | 'Needs Attention' | 'Moderate' | 'Strong';
+  statusColor: 'red' | 'amber' | 'blue' | 'green';
+  questionCount: number;
+  description: string;
+}
+
+export interface SubjectSummary {
+  id: string;
+  code: string;
+  name: string;
+  department: string;
+  semester: string;
+  studentCount: number;
+  overallAverage: number;
+  weakestTopic: string;
+  weakestMastery: number;
+  strongestTopic: string;
+  strongestMastery: number;
+  interventionCount: number;
+  isLiveDb: boolean;
+  dbClassId?: number;
+  topics: SubjectTopic[];
+  distribution: StudentStatusDistribution;
+  instructionalRecommendations: {
+    title: string;
+    action: string;
+    rationale: string;
+    focusConcepts: string[];
+    enrichmentPath: string;
+  };
+}

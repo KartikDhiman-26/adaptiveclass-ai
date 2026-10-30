@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Bot, AlertOctagon, CheckCircle2, TrendingDown, BookOpen, User } from 'lucide-react';
+import { X, Sparkles, AlertOctagon, CheckCircle2, GraduationCap } from 'lucide-react';
 import { StudentProfileResponse } from '../types';
 
 interface StudentProfileModalProps {
@@ -16,163 +16,151 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
   if (!profile) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl border border-slate-200 max-w-2xl w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div 
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="student-modal-title"
+    >
+      <div className="bg-[#202020] rounded-2xl border border-[#343434] max-w-2xl w-full shadow-2xl overflow-hidden">
         {/* Modal Header */}
-        <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between border-b border-slate-800">
+        <div className="bg-[#171717] px-6 py-4.5 flex items-center justify-between border-b border-[#343434]">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white text-lg">
+            <div className="w-10 h-10 rounded-xl bg-[#0B1B14] border border-[#20372B] flex items-center justify-center font-bold text-[#C12A29] text-base">
               {profile.student_name.charAt(0)}
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h3 className="text-lg font-bold text-white">{profile.student_name}</h3>
-                <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700">
+                <h3 id="student-modal-title" className="text-base font-bold text-[#F5F2EF]">
+                  {profile.student_name}
+                </h3>
+                <span className="text-xs font-mono bg-[#202020] text-[#B7B3B0] px-2 py-0.5 rounded border border-[#343434]">
                   {profile.roll_number}
                 </span>
               </div>
-              <p className="text-xs text-slate-400">{profile.email}</p>
+              <p className="text-xs text-[#898582] font-mono mt-0.5">{profile.email}</p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+            aria-label="Close dialog"
+            className="text-[#898582] hover:text-[#F5F2EF] p-1.5 rounded-lg hover:bg-[#202020] transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+        <div className="p-6 space-y-6 max-h-[78vh] overflow-y-auto">
           {/* Top Metrics Row */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-              <span className="text-xs text-slate-500 font-medium">Overall Mastery</span>
-              <p className="text-2xl font-bold text-slate-900 mt-1">{profile.overall_mastery}%</p>
-              <span className="inline-block mt-1 text-[11px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
+            <div className="bg-[#171717] border border-[#343434] rounded-xl p-3.5 text-center">
+              <span className="text-[11px] uppercase tracking-wider text-[#898582] font-mono font-semibold block">
+                Overall Mastery
+              </span>
+              <p className="text-2xl font-bold font-mono text-[#F5F2EF] mt-1 tabular-nums">
+                {profile.overall_mastery}%
+              </p>
+              <span className="inline-block mt-1 text-[11px] font-mono font-medium text-[#B7B3B0] bg-[#202020] border border-[#343434] px-2 py-0.5 rounded">
                 {profile.status_label}
               </span>
             </div>
 
-            <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-center">
-              <span className="text-xs text-rose-600 font-medium">Critical Learning Gap</span>
-              <p className="text-xl font-bold text-rose-700 mt-1 flex items-center justify-center space-x-1">
-                <AlertOctagon className="w-4 h-4 text-rose-600" />
-                <span>{profile.current_learning_gap}</span>
+            <div className="bg-[#261214] border border-[#5C1D20] rounded-xl p-3.5 text-center">
+              <span className="text-[11px] uppercase tracking-wider text-rose-300 font-mono font-semibold block">
+                Primary Gap
+              </span>
+              <p className="text-lg font-bold font-mono text-rose-200 mt-1 flex items-center justify-center space-x-1 truncate">
+                <AlertOctagon className="w-4 h-4 text-[#C12A29] flex-shrink-0" />
+                <span className="truncate">{profile.current_learning_gap}</span>
               </p>
-              <span className="text-[11px] text-rose-600 font-medium">Needs Support</span>
+              <span className="text-[11px] text-[#C12A29] font-mono font-medium">Needs Support</span>
             </div>
 
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center col-span-2 sm:col-span-1">
-              <span className="text-xs text-emerald-700 font-medium">Strongest Area</span>
-              <p className="text-xl font-bold text-emerald-800 mt-1 flex items-center justify-center space-x-1">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <div className="bg-[#0B1B14] border border-[#20372B] rounded-xl p-3.5 text-center col-span-2 sm:col-span-1">
+              <span className="text-[11px] uppercase tracking-wider text-emerald-300 font-mono font-semibold block">
+                Strongest Concept
+              </span>
+              <p className="text-lg font-bold font-mono text-emerald-200 mt-1 flex items-center justify-center space-x-1">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
                 <span>Arrays</span>
               </p>
-              <span className="text-[11px] text-emerald-700 font-medium">Mastery Confirmed</span>
+              <span className="text-[11px] text-emerald-400 font-mono font-medium">Verified Solid</span>
             </div>
           </div>
 
           {/* Concept-by-Concept Breakdown */}
           <div>
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Concept Mastery Breakdown</h4>
-            <div className="space-y-2.5">
-              {profile.concept_performance.map((c) => (
-                <div key={c.concept_id} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center space-x-2 w-32">
-                    <span className="font-medium text-slate-800">{c.concept_name}</span>
-                  </div>
-                  <div className="flex-1 mx-3">
-                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-[#898582] font-mono mb-3">
+              Measured Curricular Competencies
+            </h4>
+            <div className="space-y-2.5 bg-[#171717] p-4 rounded-xl border border-[#343434]">
+              {profile.concept_performance.map((c) => {
+                const isCritical = c.mastery < 40;
+                const isStrong = c.mastery >= 75;
+
+                return (
+                  <div key={c.concept_id} className="flex items-center justify-between text-xs sm:text-sm">
+                    <span className="font-medium text-[#F5F2EF] w-32 truncate">
+                      {c.concept_name}
+                    </span>
+                    <div className="flex-1 mx-3 bg-[#06110C] rounded-full h-2 overflow-hidden border border-[#343434]">
                       <div
-                        className={`h-full rounded-full ${
-                          c.status_color === 'green'
-                            ? 'bg-emerald-500'
-                            : c.status_color === 'blue'
-                            ? 'bg-blue-500'
-                            : c.status_color === 'amber'
-                            ? 'bg-amber-500'
-                            : 'bg-rose-500'
+                        className={`h-full rounded-full transition-all duration-300 ${
+                          isCritical
+                            ? 'bg-[#A31C1B]'
+                            : isStrong
+                            ? 'bg-emerald-400'
+                            : 'bg-emerald-600'
                         }`}
                         style={{ width: `${c.mastery}%` }}
-                      ></div>
+                      />
                     </div>
+                    <span className="font-mono text-xs font-bold text-[#F5F2EF] w-12 text-right tabular-nums">
+                      {c.mastery}%
+                    </span>
                   </div>
-                  <div className="w-16 text-right font-semibold text-slate-800">
-                    {c.mastery}%
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
-          {/* Recent Performance Progression */}
-          {profile.recent_performance && profile.recent_performance.length > 0 && (
-            <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center space-x-1">
-                <TrendingDown className="w-3.5 h-3.5 text-rose-500" />
-                <span>Recent Quiz History (Downwards Trend in Recursion)</span>
-              </h4>
-              <div className="bg-slate-50 border border-slate-200 rounded-xl divide-y divide-slate-200 text-xs">
-                {profile.recent_performance.map((q) => (
-                  <div key={q.quiz_id} className="p-2.5 flex items-center justify-between">
-                    <div>
-                      <span className="font-medium text-slate-800">{q.quiz_title}</span>
-                      <span className="text-slate-400 ml-2">{q.timestamp}</span>
-                    </div>
-                    <div className="font-bold text-slate-900">
-                      Score: <span className={q.accuracy < 50 ? 'text-rose-600' : 'text-slate-900'}>{q.accuracy}%</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+          {/* AI Pedagogical Insight for this student */}
+          <div className="p-4 bg-[#0B1B14] rounded-xl border border-[#20372B] space-y-2">
+            <div className="flex items-center space-x-2">
+              <Sparkles className="w-4 h-4 text-[#C12A29]" />
+              <span className="text-xs font-mono font-semibold text-[#C12A29] uppercase tracking-wider">
+                Prescriptive AI Assessment
+              </span>
             </div>
-          )}
-
-          {/* AI Learning Insight & Next Steps */}
-          <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
-            <div className="flex items-center space-x-2 text-indigo-900 font-bold text-xs uppercase tracking-wide mb-2">
-              <Bot className="w-4 h-4 text-indigo-600" />
-              <span>AI Learning Insight for {profile.student_name}</span>
-            </div>
-            <p className="text-sm text-indigo-950 mb-3 leading-relaxed">
+            <p className="text-xs text-[#B7B3B0] leading-relaxed">
               {profile.ai_insight}
             </p>
-
-            <div className="border-t border-indigo-200/60 pt-3">
-              <span className="text-xs font-semibold text-indigo-900 uppercase tracking-wide">Suggested Next Steps:</span>
-              <ul className="mt-1.5 space-y-1 text-xs text-indigo-950 list-disc list-inside">
-                {profile.suggested_steps.map((step, idx) => (
-                  <li key={idx}>{step}</li>
-                ))}
-              </ul>
-            </div>
           </div>
         </div>
 
         {/* Modal Footer */}
-        <div className="bg-slate-50 px-6 py-3 border-t border-slate-200 flex items-center justify-between">
-          <span className="text-xs text-slate-500">
-            Student Data ID: #{profile.student_id} • Semester 3
-          </span>
-          <div className="flex space-x-2">
+        <div className="bg-[#171717] px-6 py-4 flex items-center justify-between border-t border-[#343434]">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl border border-[#343434] text-[#B7B3B0] hover:text-[#F5F2EF] hover:bg-[#202020] text-xs font-medium transition-colors"
+          >
+            Close
+          </button>
+
+          {onSimulateStudentPractice && (
             <button
-              onClick={onClose}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-100 transition-colors"
+              onClick={() => {
+                onClose();
+                onSimulateStudentPractice(profile.student_id);
+              }}
+              className="px-4 py-2 rounded-xl bg-[#A31C1B] hover:bg-[#C12A29] text-white font-semibold text-xs transition-colors flex items-center space-x-2"
             >
-              Close
+              <GraduationCap className="w-4 h-4" />
+              <span>Simulate Adaptive Practice</span>
             </button>
-            {onSimulateStudentPractice && (
-              <button
-                onClick={() => onSimulateStudentPractice(profile.student_id)}
-                className="px-3.5 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition-colors flex items-center space-x-1.5 shadow-sm"
-              >
-                <BookOpen className="w-3.5 h-3.5" />
-                <span>Simulate Student Practice Flow</span>
-              </button>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </div>
