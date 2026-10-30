@@ -1,0 +1,27 @@
+# ==============================================================================
+# AdaptiveClass AI - Backend .gitignore
+# ==============================================================================
+
+# Secrets and local environment files (Never commit credentials)
+.env
+.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Whitelist template configuration
+!.env.example
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/

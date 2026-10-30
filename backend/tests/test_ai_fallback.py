@@ -1,5 +1,7 @@
+from unittest.mock import patch
 from app.ai_insights import generate_classroom_insight, generate_student_insight, TEACHER_DISCLAIMER
 
+@patch("app.ai_insights.GEMINI_API_KEY", "")
 def test_ai_autonomous_fallback():
     metrics = {
         "class_name": "B.E. CSE — Data Structures",
@@ -24,7 +26,7 @@ def test_ai_autonomous_fallback():
     assert "23 of 80 students" in insight.why
     assert "base cases" in insight.suggested_action.lower()
     assert insight.teacher_disclaimer == TEACHER_DISCLAIMER
-    assert insight.generated_by in ["Gemini 2.5 Flash", "Autonomous Rule-Based Engine"]
+    assert insight.generated_by == "Autonomous Rule-Based Engine"
 
 def test_student_personalized_insight():
     student_metric = {
