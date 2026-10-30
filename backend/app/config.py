@@ -1,3 +1,4 @@
+from typing import Dict, Any
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -34,6 +35,9 @@ if not DATABASE_URL.startswith("postgresql+psycopg://"):
     )
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash").strip()
+GEMINI_REQUEST_TIMEOUT_MS = int(os.getenv("GEMINI_REQUEST_TIMEOUT_MS", "10000"))
+DB_CONNECT_TIMEOUT = int(os.getenv("DB_CONNECT_TIMEOUT", "3"))
 PORT = int(os.getenv("PORT", "8000"))
 HOST = os.getenv("HOST", "0.0.0.0")
 
@@ -43,3 +47,14 @@ CORS_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
+
+
+def get_gemini_status() -> Dict[str, Any]:
+    has_key = bool(GEMINI_API_KEY)
+    key_length = len(GEMINI_API_KEY) if has_key else 0
+    return {
+        "configured": has_key,
+        "key_length": key_length,
+        "model": GEMINI_MODEL,
+        "mode": "online (Gemini API)" if has_key else "offline (pedagogical engine fallback)"
+    }

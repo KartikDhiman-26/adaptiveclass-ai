@@ -4,7 +4,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import CORS_ORIGINS
 from app.database import engine, Base, SessionLocal, check_db_connection
 from app.seed_data import seed_database
-from app.routers import auth, datasets, student_ai
+from app.routers import (
+    auth,
+    classes,
+    datasets,
+    demo,
+    quiz,
+    students,
+    student_ai,
+    student_tutor,
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -46,6 +55,11 @@ app.add_middleware(
 
 # Register routers
 app.include_router(auth.router)
+app.include_router(classes.router)
+app.include_router(students.router)
+app.include_router(quiz.router)
+app.include_router(demo.router)
+app.include_router(student_tutor.router)
 app.include_router(datasets.router)
 app.include_router(student_ai.router)
 
