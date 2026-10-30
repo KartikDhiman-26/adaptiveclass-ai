@@ -20,7 +20,15 @@ export interface TutorMessage {
     label: string;
     actionType: 'start_quiz' | 'next_topic';
     conceptId?: number;
+    topicName?: string;
   };
+  engineUsed?: 'gemini' | 'offline_fallback' | string;
+  adaptationApplied?: string;
+  topicDetected?: string;
+  suggestQuiz?: boolean;
+  suggestedQuizTopic?: string;
+  sessionId?: string;
+  isError?: boolean;
 }
 
 export interface TutorConcept {
@@ -38,4 +46,3 @@ export interface QuickPromptOption {
   description: string;
   queryTemplate: (concept: string) => string;
 }
-

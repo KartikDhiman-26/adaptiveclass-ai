@@ -54,7 +54,7 @@ export const StudentListPage: React.FC<StudentListPageProps> = ({
           <div className="flex items-center space-x-2 text-xs font-mono text-[#C12A29] font-semibold mb-1">
             <span>Enrolled Roster Intelligence</span>
             <span>•</span>
-            <span>80 Students</span>
+            <span>{students.length} Students</span>
           </div>
           <h1 className="text-2xl font-bold text-[#F5F2EF]">Student Roster & Diagnostic Telemetry</h1>
           <p className="text-xs text-[#B7B3B0] mt-0.5">Filter by performance tier or search individual learners</p>
@@ -85,7 +85,7 @@ export const StudentListPage: React.FC<StudentListPageProps> = ({
           </select>
 
           <button
-            onClick={onRefresh}
+            onClick={() => onRefresh()}
             disabled={isLoading}
             className="p-2 border border-[#343434] rounded-xl bg-[#171717] hover:bg-[#202020] text-[#B7B3B0] disabled:opacity-50"
             title="Refresh student roster"

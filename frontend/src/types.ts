@@ -52,6 +52,17 @@ export interface StudentNeedingAttentionItem {
   recommended_action: string;
 }
 
+export interface ClassStudentItem {
+  id: number;
+  name: string;
+  roll_number: string;
+  email: string;
+  overall_mastery: number;
+  status_label: string;
+  weak_concept: string;
+  weak_mastery: number;
+}
+
 export interface StudentConceptScore {
   concept_id: number;
   concept_name: string;

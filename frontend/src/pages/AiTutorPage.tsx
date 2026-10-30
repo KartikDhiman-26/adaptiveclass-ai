@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Sparkles, Send, ArrowRight, BookOpen, AlertOctagon, 
-  RotateCcw, Code2, ShieldCheck, ArrowLeft, BarChart2
+  RotateCcw, Code2, ShieldCheck, ArrowLeft, BarChart2,
+  RefreshCw, UserCheck, AlertTriangle
 } from 'lucide-react';
 import { TutorMessage, QuickPromptType, TutorConcept } from '../types/tutor';
 import { tutorService, QUICK_PROMPTS } from '../services/tutorService';
@@ -11,7 +12,7 @@ import { StudentProfileResponse } from '../types';
 interface AiTutorPageProps {
   studentId: number;
   initialConceptId?: number;
-  onStartPractice: (conceptId?: number) => void;
+  onStartPractice: (conceptId?: number, topicName?: string) => void;
   onViewProgress: () => void;
 }
 
@@ -22,42 +23,87 @@ export const AiTutorPage: React.FC<AiTutorPageProps> = ({
   onViewProgress
 }) => {
   const [profile, setProfile] = useState<StudentProfileResponse | null>(null);
+  const [studentToken, setStudentToken] = useState<string | null>(null);
   const [concepts, setConcepts] = useState<TutorConcept[]>([]);
   const [selectedConcept, setSelectedConcept] = useState<TutorConcept | null>(null);
   const [messages, setMessages] = useState<TutorMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isThinking, setIsThinking] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [lastFailedMessage, setLastFailedMessage] = useState<{ text: string; promptType: QuickPromptType } | null>(null);
+  const [tutorEngineStatus, setTutorEngineStatus] = useState<{ gemini_configured: boolean; model: string; mode: string } | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // Initial load: fetch student profile to extract real mastery & concepts
+  // Initial load / student change: fetch profile and student bearer token
   useEffect(() => {
+    if (!studentId) {
+      setProfile(null);
+      setStudentToken(null);
+      setSessionId(null);
+      const defaults = tutorService.getConceptsForStudent(null);
+      setConcepts(defaults);
+      setSelectedConcept(defaults[0]);
+      setMessages(tutorService.getInitialWorkspaceMessages(defaults[0].name, 'Student', defaults[0].mastery));
+      return;
+    }
+
     let isMounted = true;
-    api.getStudentProfile(studentId)
-      .then((p) => {
+    setApiError(null);
+    setSessionId(null); // Fresh session for switched student identity
+
+    // 1. Fetch real student profile, bearer token, and tutor engine status concurrently
+    Promise.all([
+      api.getStudentProfile(studentId),
+      api.getStudentToken(studentId).catch((err) => {
+        console.warn('Could not auto-fetch token for student:', err);
+        return null;
+      }),
+      api.getTutorStatus().catch(() => ({
+        gemini_configured: false,
+        model: 'gemini-3.5-flash-lite',
+        mode: 'offline (pedagogical engine fallback)',
+        active_engine: 'offline_fallback'
+      }))
+    ])
+      .then(([p, tokenData, statusData]) => {
         if (!isMounted) return;
+        if (statusData) {
+          setTutorEngineStatus(statusData);
+        }
         setProfile(p);
+        if (tokenData && tokenData.token) {
+          setStudentToken(tokenData.token);
+        }
+
         const derivedConcepts = tutorService.getConceptsForStudent(p);
         setConcepts(derivedConcepts);
 
-        // Find initial concept or default to weakest concept
-        let target = derivedConcepts.find(c => c.id === initialConceptId);
+        // Find initial concept or default to priority learning gap
+        let target = derivedConcepts.find((c) => c.id === initialConceptId);
         if (!target) {
-          target = derivedConcepts.find(c => c.name.toLowerCase() === p.current_learning_gap.toLowerCase()) 
-            || derivedConcepts[0];
+          target =
+            derivedConcepts.find((c) => c.name.toLowerCase() === p.current_learning_gap.toLowerCase()) ||
+            derivedConcepts[0];
         }
         setSelectedConcept(target);
         setMessages(tutorService.getInitialWorkspaceMessages(target.name, p.student_name, target.mastery));
       })
       .catch((err) => {
+        if (!isMounted) return;
         console.error('Failed to load student profile for AI tutor:', err);
+        setApiError(`Could not load student profile: ${err.message || 'Network error'}`);
         const defaults = tutorService.getConceptsForStudent(null);
         setConcepts(defaults);
         setSelectedConcept(defaults[0]);
         setMessages(tutorService.getInitialWorkspaceMessages(defaults[0].name, 'Student', defaults[0].mastery));
       });
 
-    return () => { isMounted = false; };
+    return () => {
+      isMounted = false;
+    };
   }, [studentId, initialConceptId]);
 
   // Auto-scroll chat to bottom when messages update
@@ -69,18 +115,26 @@ export const AiTutorPage: React.FC<AiTutorPageProps> = ({
   const handleSelectConcept = (concept: TutorConcept) => {
     if (selectedConcept?.id === concept.id) return;
     setSelectedConcept(concept);
+    setSessionId(null); // Start fresh multi-turn session for the new concept
+    setApiError(null);
     const studentName = profile?.student_name || 'Student';
     setMessages(tutorService.getInitialWorkspaceMessages(concept.name, studentName, concept.mastery));
   };
 
-  // Submit query
+  // Submit query to live backend
   const handleSendMessage = async (textToSend: string, promptType: QuickPromptType = 'custom') => {
     if (!textToSend.trim() || isThinking || !selectedConcept) return;
 
+    if (!studentId) {
+      setApiError('Please select a student persona before sending a query to the AI Tutor.');
+      return;
+    }
+
+    const trimmedText = textToSend.trim();
     const userMessage: TutorMessage = {
       id: `usr_${Date.now()}`,
       role: 'student',
-      content: textToSend.trim(),
+      content: trimmedText,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       quickPromptType: promptType
     };
@@ -88,19 +142,49 @@ export const AiTutorPage: React.FC<AiTutorPageProps> = ({
     setMessages((prev) => [...prev, userMessage]);
     setInputText('');
     setIsThinking(true);
+    setApiError(null);
+    setLastFailedMessage(null);
 
     try {
-      const response = await tutorService.sendMessage(selectedConcept.name, textToSend, promptType);
+      // Ensure we have a valid bearer token
+      let token = studentToken;
+      if (!token) {
+        const tokenRes = await api.getStudentToken(studentId);
+        token = tokenRes.token;
+        setStudentToken(token);
+      }
+
+      const response = await tutorService.sendMessage(
+        selectedConcept.name,
+        trimmedText,
+        promptType,
+        studentId,
+        profile?.student_name,
+        token,
+        sessionId,
+        selectedConcept.id
+      );
+
+      // Persist session ID returned by PostgreSQL backend for multi-turn retention
+      if (response.sessionId) {
+        setSessionId(response.sessionId);
+      }
+
       setMessages((prev) => [...prev, response]);
-    } catch (err) {
-      console.error('Error getting tutor response:', err);
+    } catch (err: any) {
+      console.error('Error getting real tutor response:', err);
+      const errMsg = err?.message || 'Failed to communicate with AI Tutor API';
+      setApiError(errMsg);
+      setLastFailedMessage({ text: trimmedText, promptType });
+
       setMessages((prev) => [
         ...prev,
         {
           id: `err_${Date.now()}`,
           role: 'tutor',
-          content: 'I apologize, but I encountered an error formulating my explanation. Please try asking again.',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          content: `⚠️ **Connection Notice**: I was unable to connect to the backend tutor engine.\n\n*Error details*: ${errMsg}\n\nPlease verify that the FastAPI backend is running and click retry below.`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          isError: true
         }
       ]);
     } finally {
@@ -119,8 +203,64 @@ export const AiTutorPage: React.FC<AiTutorPageProps> = ({
   // Reset conversation for active concept
   const handleResetConversation = () => {
     if (!selectedConcept) return;
+    setSessionId(null);
+    setApiError(null);
     const studentName = profile?.student_name || 'Student';
     setMessages(tutorService.getInitialWorkspaceMessages(selectedConcept.name, studentName, selectedConcept.mastery));
+  };
+
+  // Render markdown text and embedded code blocks
+  const renderMessageContent = (content: string) => {
+    const codeBlockRegex = /```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g;
+    const parts: Array<{ type: 'text' | 'code'; language?: string; content: string }> = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = codeBlockRegex.exec(content)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push({
+          type: 'text',
+          content: content.slice(lastIndex, match.index)
+        });
+      }
+      parts.push({
+        type: 'code',
+        language: match[1] || 'text',
+        content: match[2].trim()
+      });
+      lastIndex = match.index + match[0].length;
+    }
+    if (lastIndex < content.length) {
+      parts.push({
+        type: 'text',
+        content: content.slice(lastIndex)
+      });
+    }
+
+    return (
+      <div className="space-y-3">
+        {parts.map((p, idx) => {
+          if (p.type === 'code') {
+            return (
+              <div key={idx} className="my-3 rounded-xl bg-[#171717] text-[#F5F2EF] p-3.5 border border-[#343434] font-mono text-xs overflow-x-auto">
+                <div className="flex justify-between items-center text-[10px] text-[#898582] mb-2 border-b border-[#343434] pb-1.5 uppercase tracking-widest font-mono">
+                  <span>{p.language || 'code'} trace</span>
+                  <Code2 className="w-3.5 h-3.5 text-[#898582]" />
+                </div>
+                <pre className="font-mono text-xs leading-relaxed text-emerald-300">
+                  <code>{p.content}</code>
+                </pre>
+              </div>
+            );
+          }
+          return (
+            <div key={idx} className="whitespace-pre-wrap leading-relaxed">
+              {p.content}
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
@@ -143,8 +283,21 @@ export const AiTutorPage: React.FC<AiTutorPageProps> = ({
             <span>Socratic Study Companion</span>
           </h1>
           <p className="text-xs text-[#B7B3B0] mt-0.5">
-            Personalized algorithmic explanations, execution traces, and mental models without evaluation pressure.
+            Real-time emotion-aware pedagogical dialog connected to FastAPI and Gemini with full multi-turn persistence.
           </p>
+          <div className="flex items-center space-x-2 mt-2">
+            {tutorEngineStatus?.gemini_configured ? (
+              <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono bg-[#0B1B14] text-emerald-400 border border-emerald-800/60 shadow-sm">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                <span>Live Gemini Active ({tutorEngineStatus.model})</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono bg-[#1c1811] text-amber-300 border border-amber-900/60 shadow-sm" title="Offline pedagogical engine active. Set GEMINI_API_KEY in backend/.env for live Gemini.">
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                <span>Offline Pedagogical Mode (Set GEMINI_API_KEY for Live Gemini)</span>
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center space-x-3">
@@ -158,7 +311,7 @@ export const AiTutorPage: React.FC<AiTutorPageProps> = ({
 
           {selectedConcept && (
             <button
-              onClick={() => onStartPractice(selectedConcept.id)}
+              onClick={() => onStartPractice(selectedConcept.id, selectedConcept.name)}
               className="px-4 py-2 rounded-xl bg-[#A31C1B] hover:bg-[#C12A29] text-white font-semibold text-xs shadow-sm transition-all flex items-center space-x-1.5"
             >
               <BookOpen className="w-3.5 h-3.5 text-white" />
@@ -168,6 +321,25 @@ export const AiTutorPage: React.FC<AiTutorPageProps> = ({
           )}
         </div>
       </div>
+
+      {/* Global Error Banner if API Fails */}
+      {apiError && (
+        <div className="p-3.5 rounded-xl bg-[#261214] border border-[#A31C1B]/60 text-xs text-rose-200 flex items-center justify-between gap-3 animate-in fade-in">
+          <div className="flex items-center space-x-2">
+            <AlertTriangle className="w-4 h-4 text-[#C12A29] flex-shrink-0" />
+            <span>{apiError}</span>
+          </div>
+          {lastFailedMessage && (
+            <button
+              onClick={() => handleSendMessage(lastFailedMessage.text, lastFailedMessage.promptType)}
+              className="px-2.5 py-1 rounded bg-[#A31C1B] hover:bg-[#C12A29] text-white text-[11px] font-mono flex items-center space-x-1 transition-colors"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <span>Retry</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* 2. MAIN WORKSPACE: SIDEBAR + CHAT STAGE */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
@@ -250,14 +422,17 @@ export const AiTutorPage: React.FC<AiTutorPageProps> = ({
             )}
           </div>
 
-          {/* Prototype Transparency Notice */}
-          <div className="bg-[#0B1B14] border border-[#20372B] rounded-xl p-3.5 text-[11px] text-[#B7B3B0] space-y-1">
+          {/* Persona Sync & Architecture Status */}
+          <div className="bg-[#0B1B14] border border-[#20372B] rounded-xl p-3.5 text-[11px] text-[#B7B3B0] space-y-1.5">
             <div className="flex items-center space-x-1.5 text-[#F5F2EF] font-semibold font-mono">
-              <ShieldCheck className="w-3.5 h-3.5 text-[#C12A29] flex-shrink-0" />
-              <span>Socratic Session</span>
+              <UserCheck className="w-3.5 h-3.5 text-[#C12A29] flex-shrink-0" />
+              <span>Persona Sync</span>
             </div>
             <p className="leading-relaxed">
-              Provides Socratic dialogue and step-by-step traces using verified instructional templates. Quizzes and mastery scores sync live with PostgreSQL.
+              Active identity: <strong className="text-[#F5F2EF]">{profile?.student_name || 'Loading student...'}</strong>
+            </p>
+            <p className="text-[10px] text-[#898582] font-mono">
+              Role: student • ID: {studentId} • Token: {studentToken ? 'Authenticated' : 'Resolving'}
             </p>
           </div>
         </aside>
@@ -285,6 +460,11 @@ export const AiTutorPage: React.FC<AiTutorPageProps> = ({
                         : 'bg-[#202020] text-[#B7B3B0] border-[#343434]'
                     }`}>
                       {selectedConcept.mastery}% Mastery
+                    </span>
+                  )}
+                  {sessionId && (
+                    <span className="hidden sm:inline text-[10px] text-[#898582] font-mono border border-[#343434] px-1.5 py-0.5 rounded bg-[#171717]">
+                      Thread #{sessionId.slice(0, 8)}
                     </span>
                   )}
                 </div>
@@ -338,49 +518,83 @@ export const AiTutorPage: React.FC<AiTutorPageProps> = ({
                 key={msg.id}
                 className={`flex flex-col ${msg.role === 'student' ? 'items-end' : 'items-start'}`}
               >
-                <div className="flex items-center space-x-2 mb-1 px-1">
+                {/* Message Header Bar */}
+                <div className="flex flex-wrap items-center gap-2 mb-1.5 px-1">
                   <span className="text-[11px] font-semibold text-[#898582] uppercase font-mono">
-                    {msg.role === 'student' ? (profile?.student_name || 'You') : 'Pedagogical Tutor'}
+                    {msg.role === 'student' ? (profile?.student_name || 'You') : 'Pedagogical Socratic Tutor'}
                   </span>
                   <span className="text-[10px] text-[#898582] font-mono">{msg.timestamp}</span>
+
+                  {/* Explicit Engine Badge */}
+                  {msg.role === 'tutor' && msg.engineUsed && (
+                    <span className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-mono font-medium border ${
+                      msg.engineUsed === 'gemini'
+                        ? 'bg-[#0B1B14] text-emerald-400 border-emerald-800/60'
+                        : 'bg-[#1c1811] text-amber-300 border-amber-900/60'
+                    }`}>
+                      {msg.engineUsed === 'gemini' ? (
+                        <>
+                          <Sparkles className="w-2.5 h-2.5 text-emerald-400" />
+                          <span>Gemini Live ({tutorEngineStatus?.model || 'Flash'})</span>
+                        </>
+                      ) : (
+                        <>
+                          <ShieldCheck className="w-2.5 h-2.5 text-amber-400" />
+                          <span>Offline Fallback Engine</span>
+                        </>
+                      )}
+                    </span>
+                  )}
+
+                  {/* Emotion / Pedagogical Adaptation Badge */}
+                  {msg.role === 'tutor' && msg.adaptationApplied && (
+                    <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-mono bg-[#202020] text-[#B7B3B0] border border-[#343434]">
+                      <span>💡 {msg.adaptationApplied}</span>
+                    </span>
+                  )}
                 </div>
 
+                {/* Message Bubble */}
                 <div
                   className={`max-w-2xl rounded-2xl p-4 sm:p-5 text-xs sm:text-sm leading-relaxed border ${
                     msg.role === 'student'
                       ? 'bg-[#A31C1B] text-white border-[#C12A29] rounded-tr-sm shadow-sm'
+                      : msg.isError
+                      ? 'bg-[#261214] text-rose-200 border-[#A31C1B]/80 rounded-tl-sm shadow-sm'
                       : 'bg-[#202020] text-[#F5F2EF] border-[#343434] rounded-tl-sm shadow-sm'
                   }`}
                 >
-                  {/* Content paragraphs */}
-                  <div className="space-y-3 whitespace-pre-wrap">
-                    {msg.content}
-                  </div>
+                  {/* Content paragraphs and formatted code */}
+                  {renderMessageContent(msg.content)}
 
-                  {/* Code snippet block if present */}
-                  {msg.codeSnippet && (
-                    <div className="mt-4 rounded-xl bg-[#171717] text-[#F5F2EF] p-3.5 border border-[#343434] font-mono text-xs overflow-x-auto">
-                      <div className="flex justify-between items-center text-[10px] text-[#898582] mb-2 border-b border-[#343434] pb-1.5 uppercase tracking-widest">
-                        <span>{msg.codeSnippet.language} implementation</span>
-                        <Code2 className="w-3.5 h-3.5 text-[#898582]" />
-                      </div>
-                      <pre>
-                        <code>{msg.codeSnippet.code}</code>
-                      </pre>
-                      {msg.codeSnippet.explanation && (
-                        <p className="mt-2.5 pt-2 border-t border-[#343434] text-[11px] text-[#898582] font-sans italic">
-                          💡 {msg.codeSnippet.explanation}
+                  {/* Diagnostic Quiz Suggestion Card */}
+                  {msg.suggestQuiz && (
+                    <div className="mt-4 p-3 rounded-xl bg-[#0B1B14] border border-[#20372B] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div className="space-y-0.5">
+                        <span className="text-[11px] font-mono font-semibold text-emerald-400 uppercase tracking-wider block">
+                          Diagnostic Check Ready
+                        </span>
+                        <p className="text-xs text-[#F5F2EF]">
+                          Ready to test your understanding of <strong className="text-white">{msg.suggestedQuizTopic || selectedConcept?.name}</strong>?
                         </p>
-                      )}
+                      </div>
+                      <button
+                        onClick={() => onStartPractice(selectedConcept?.id, msg.suggestedQuizTopic)}
+                        className="px-3.5 py-1.5 rounded-lg bg-[#A31C1B] hover:bg-[#C12A29] text-white text-xs font-semibold flex items-center space-x-1.5 transition-colors whitespace-nowrap"
+                      >
+                        <BookOpen className="w-3.5 h-3.5" />
+                        <span>Launch Adaptive Quiz</span>
+                        <ArrowRight className="w-3 h-3 ml-0.5" />
+                      </button>
                     </div>
                   )}
 
-                  {/* Suggested practice CTA if present */}
-                  {msg.suggestedAction && (
+                  {/* Suggested practice CTA if present and quiz not already suggested */}
+                  {msg.suggestedAction && !msg.suggestQuiz && (
                     <div className="mt-4 pt-3 border-t border-[#343434] flex items-center justify-between gap-2">
                       <span className="text-[11px] text-[#898582] font-medium">Ready to test this concept?</span>
                       <button
-                        onClick={() => onStartPractice(msg.suggestedAction?.conceptId || selectedConcept?.id)}
+                        onClick={() => onStartPractice(msg.suggestedAction?.conceptId || selectedConcept?.id, msg.suggestedAction?.topicName)}
                         className="px-3 py-1.5 rounded-lg bg-[#A31C1B] hover:bg-[#C12A29] text-white text-xs font-semibold flex items-center space-x-1.5 transition-colors"
                       >
                         <BookOpen className="w-3.5 h-3.5" />
@@ -390,7 +604,7 @@ export const AiTutorPage: React.FC<AiTutorPageProps> = ({
                   )}
                 </div>
 
-                {/* Socratic follow-up suggestions */}
+                {/* Socratic Dynamic Follow-up Suggestions */}
                 {msg.followUpQuestions && msg.followUpQuestions.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1.5 max-w-2xl">
                     {msg.followUpQuestions.map((q, idx) => (
@@ -398,9 +612,10 @@ export const AiTutorPage: React.FC<AiTutorPageProps> = ({
                         key={idx}
                         onClick={() => handleSendMessage(q, 'custom')}
                         disabled={isThinking}
-                        className="text-[11px] font-mono text-[#B7B3B0] bg-[#171717] hover:bg-[#202020] border border-[#343434] hover:border-[#20372B] rounded-full px-3 py-1 transition-colors flex items-center space-x-1"
+                        className="text-[11px] font-mono text-[#B7B3B0] bg-[#171717] hover:bg-[#202020] border border-[#343434] hover:border-[#20372B] rounded-full px-3 py-1 transition-colors flex items-center space-x-1 group"
                       >
-                        <span>→ {q}</span>
+                        <span className="text-[#C12A29] group-hover:translate-x-0.5 transition-transform">→</span>
+                        <span>{q}</span>
                       </button>
                     ))}
                   </div>
@@ -420,7 +635,7 @@ export const AiTutorPage: React.FC<AiTutorPageProps> = ({
                     <span className="w-1.5 h-1.5 rounded-full bg-[#A31C1B] animate-bounce" style={{ animationDelay: '150ms' }} />
                     <span className="w-1.5 h-1.5 rounded-full bg-[#A31C1B] animate-bounce" style={{ animationDelay: '300ms' }} />
                   </div>
-                  <span className="text-[11px] text-[#898582] font-mono">Formulating mental model...</span>
+                  <span className="text-[11px] text-[#898582] font-mono">Formulating Socratic response...</span>
                 </div>
               </div>
             )}

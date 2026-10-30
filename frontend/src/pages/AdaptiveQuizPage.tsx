@@ -46,9 +46,15 @@ export const AdaptiveQuizPage: React.FC<AdaptiveQuizPageProps> = ({
 
   const [history, setHistory] = useState<AnswerHistory[]>([]);
   const [isSubmittingFinal, setIsSubmittingFinal] = useState(false);
+  const [quizError, setQuizError] = useState<string | null>(null);
 
   const startQuiz = async () => {
+    if (!studentId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
+    setQuizError(null);
     try {
       const res = await api.startAdaptiveQuiz(studentId, conceptId);
       setConceptName(res.concept_name);
@@ -61,8 +67,9 @@ export const AdaptiveQuizPage: React.FC<AdaptiveQuizPageProps> = ({
       setSelectedOption(null);
       setIsAnswerSubmitted(false);
       setAnswerFeedback(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to start adaptive quiz:", err);
+      setQuizError(err.message || "Failed to start adaptive quiz session.");
     } finally {
       setLoading(false);
     }
@@ -145,6 +152,54 @@ export const AdaptiveQuizPage: React.FC<AdaptiveQuizPageProps> = ({
       setAnswerFeedback(null);
     }
   };
+
+  if (!studentId) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-20 text-center space-y-4">
+        <div className="w-12 h-12 rounded-xl bg-[#0B1B14] border border-[#20372B] text-amber-400 flex items-center justify-center mx-auto">
+          <ShieldAlert className="w-6 h-6 text-amber-400" />
+        </div>
+        <h2 className="text-xl font-bold text-[#F5F2EF]">No Student Persona Selected</h2>
+        <p className="text-xs text-[#B7B3B0] max-w-md mx-auto leading-relaxed">
+          Adaptive practice requires an active student persona from the current cohort to evaluate mastery.
+        </p>
+        <button
+          onClick={onCancel}
+          className="px-4 py-2 bg-[#A31C1B] hover:bg-[#C12A29] text-[#F5F2EF] rounded-xl text-xs font-semibold"
+        >
+          Return to Learning Portal
+        </button>
+      </div>
+    );
+  }
+
+  if (quizError) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-20 text-center space-y-4">
+        <div className="w-12 h-12 rounded-xl bg-red-950/40 border border-red-800/60 text-red-400 flex items-center justify-center mx-auto">
+          <ShieldAlert className="w-6 h-6 text-red-400" />
+        </div>
+        <h2 className="text-xl font-bold text-[#F5F2EF]">Quiz Initialization Error</h2>
+        <p className="text-xs text-red-300 max-w-md mx-auto leading-relaxed">
+          {quizError}
+        </p>
+        <div className="flex items-center justify-center space-x-3">
+          <button
+            onClick={startQuiz}
+            className="px-4 py-2 bg-[#A31C1B] hover:bg-[#C12A29] text-[#F5F2EF] rounded-xl text-xs font-semibold"
+          >
+            Retry Quiz
+          </button>
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 border border-[#343434] bg-[#202020] text-[#B7B3B0] hover:text-[#F5F2EF] rounded-xl text-xs font-semibold"
+          >
+            Return to Portal
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading && !currentQuestion) {
     return (

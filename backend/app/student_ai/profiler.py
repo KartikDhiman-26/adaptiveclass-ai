@@ -197,7 +197,7 @@ def load_learner_profile_from_db(student_id: int, db: Session) -> Optional[Learn
             student_id=student.id,
             student_name=student.name,
             email=student.email,
-            subject="Data Structures & Algorithms",
+            subject=(student.class_group.subject if student.class_group and student.class_group.subject else "Data Structures & Algorithms"),
             overall_mastery=overall,
             learning_level=learning_level,
             topic_mastery=topic_map,

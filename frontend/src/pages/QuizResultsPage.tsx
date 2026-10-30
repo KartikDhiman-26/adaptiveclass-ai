@@ -92,18 +92,18 @@ export const QuizResultsPage: React.FC<QuizResultsPageProps> = ({
             <span className="text-xs text-[#898582]">Class {results.concept_name} Average</span>
             <div className="flex items-baseline space-x-2 mt-1">
               <span className="text-2xl font-bold text-emerald-300 tabular-nums">{results.new_class_recursion_average}%</span>
-              <span className="text-xs text-[#898582]">rose from 35.0%</span>
+              <span className="text-xs text-[#898582]">Live cohort average</span>
             </div>
-            <p className="text-[11px] text-[#898582] mt-1 font-sans">Recalculated from all 80 students in PostgreSQL</p>
+            <p className="text-[11px] text-[#898582] mt-1 font-sans">Recalculated in PostgreSQL across active students</p>
           </div>
 
           <div className="bg-[#171717] rounded-xl p-4 border border-[#343434] font-mono">
-            <span className="text-xs text-[#898582]">Students Needing Support</span>
+            <span className="text-xs text-[#898582]">Students Needing Support in {results.concept_name}</span>
             <div className="flex items-baseline space-x-2 mt-1">
               <span className="text-2xl font-bold text-[#C12A29] tabular-nums">{results.new_recursion_support_count}</span>
-              <span className="text-xs text-[#898582]">dropped from 23</span>
+              <span className="text-xs text-[#898582]">students &lt; 40%</span>
             </div>
-            <p className="text-[11px] text-[#898582] mt-1 font-sans">1 student exited the critical alert zone</p>
+            <p className="text-[11px] text-[#898582] mt-1 font-sans">Threshold alerts updated in real-time</p>
           </div>
         </div>
 

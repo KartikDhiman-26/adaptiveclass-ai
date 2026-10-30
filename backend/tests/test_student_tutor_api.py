@@ -297,6 +297,7 @@ def test_http_tutor_rejects_student_id_spoofing(tutor_client, db_session, tutor_
     assert response.status_code == 403
 
 
+@patch("app.student_ai.quiz_generator.GEMINI_API_KEY", "")
 def test_unknown_quiz_topic_does_not_fall_back_to_unrelated_question(db_session, tutor_student):
     with pytest.raises(HTTPException) as exc_info:
         start_tutor_quiz(

@@ -35,7 +35,7 @@ if not DATABASE_URL.startswith("postgresql+psycopg://"):
     )
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash").strip()
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
 GEMINI_REQUEST_TIMEOUT_MS = int(os.getenv("GEMINI_REQUEST_TIMEOUT_MS", "10000"))
 DB_CONNECT_TIMEOUT = int(os.getenv("DB_CONNECT_TIMEOUT", "3"))
 PORT = int(os.getenv("PORT", "8000"))

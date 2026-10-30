@@ -9,6 +9,9 @@ class LoginRequest(BaseModel):
     captcha_id: Optional[str] = None
     captcha_answer: Optional[str] = None
 
+class StudentTokenRequest(BaseModel):
+    student_id: int
+
 class LoginResponse(BaseModel):
     user_id: int
     name: str
@@ -32,6 +35,18 @@ class DatasetUploadResponse(BaseModel):
     row_count: int
     error_count: int
     uploaded_at: datetime
+    class_id: Optional[int] = None
+    class_name: Optional[str] = None
+    subject: Optional[str] = None
+
+
+class DatasetValidationResponse(BaseModel):
+    valid: bool
+    row_count: int
+    detected_columns: List[str]
+    class_name: Optional[str] = None
+    subject: Optional[str] = None
+    sample_errors: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class DatasetRowResponse(BaseModel):
@@ -49,6 +64,7 @@ class DatasetRowResponse(BaseModel):
 
 class DatasetUploadDetailResponse(DatasetUploadResponse):
     errors: List[Dict[str, Any]] = Field(default_factory=list)
+    student_count: Optional[int] = None
 
 
 class DatasetAnalysisResponse(BaseModel):

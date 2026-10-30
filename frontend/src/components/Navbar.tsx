@@ -3,10 +3,13 @@ import {
   Sparkles, RefreshCw, UserCheck, GraduationCap, 
   School, BookOpen, Menu, X, ChevronDown, Check
 } from 'lucide-react';
+import { ClassStudentItem } from '../types';
 
 interface NavbarProps {
-  currentRole: 'teacher' | 'student' | 'advanced';
-  onRoleChange: (role: 'teacher' | 'student' | 'advanced') => void;
+  currentRole: 'teacher' | 'student';
+  onRoleChange: (role: 'teacher' | 'student', studentId?: number) => void;
+  activeStudent?: ClassStudentItem | null;
+  studentsList: ClassStudentItem[];
   activeTab: string;
   onTabChange: (tab: string) => void;
   onResetDemo: () => void;
@@ -16,6 +19,8 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({
   currentRole,
   onRoleChange,
+  activeStudent,
+  studentsList,
   activeTab,
   onTabChange,
   onResetDemo,
@@ -28,21 +33,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   const navContainerRef = useRef<HTMLDivElement | null>(null);
   const [indicatorStyle, setIndicatorStyle] = useState<{ left: number; width: number }>({ left: 0, width: 0 });
 
-  const roleLabels = {
-    teacher: { name: 'Prof. Vikram Sen', title: 'Instructor', icon: School },
-    student: { name: 'Aarav Sharma', title: 'Student (28% Gap)', icon: GraduationCap },
-    advanced: { name: 'Priya Patel', title: 'Advanced (92%)', icon: UserCheck }
-  };
-
-  const ActiveRoleIcon = roleLabels[currentRole].icon;
-
   const handleNavClick = (tab: string) => {
     onTabChange(tab);
     setIsMobileMenuOpen(false);
   };
 
-  const handleRoleSelect = (role: 'teacher' | 'student' | 'advanced') => {
-    onRoleChange(role);
+  const handleSelectRole = (role: 'teacher' | 'student', studentId?: number) => {
+    onRoleChange(role, studentId);
     setIsRoleDropdownOpen(false);
     setIsMobileMenuOpen(false);
   };
@@ -125,6 +122,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 />
               )}
 
+              {/* Navigation Tabs based on Active Persona */}
               {currentRole === 'teacher' ? (
                 <>
                   <button
@@ -253,47 +251,124 @@ export const Navbar: React.FC<NavbarProps> = ({
                 aria-haspopup="true"
                 className="flex items-center space-x-2 px-3 py-1.5 rounded-xl border border-[#343434] bg-[#202020] hover:bg-[#262626] hover:border-[#A31C1B] text-[#F5F2EF] text-xs font-medium transition-colors shadow-xs"
               >
-                <ActiveRoleIcon className="w-3.5 h-3.5 text-[#A31C1B]" />
-                <span className="font-semibold">{roleLabels[currentRole].title}</span>
+                {currentRole === 'teacher' ? (
+                  <>
+                    <School className="w-3.5 h-3.5 text-[#A31C1B]" />
+                    <span className="font-semibold">Instructor View</span>
+                  </>
+                ) : (
+                  <>
+                    <GraduationCap className="w-3.5 h-3.5 text-[#A31C1B]" />
+                    <span className="font-semibold truncate max-w-[120px]">
+                      {activeStudent ? activeStudent.name : 'Student Mode'}
+                    </span>
+                    {activeStudent && (
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#0B1B14] text-emerald-400 border border-[#20372B]">
+                        {activeStudent.overall_mastery}%
+                      </span>
+                    )}
+                  </>
+                )}
                 <ChevronDown className="w-3 h-3 text-[#898582]" />
               </button>
 
               {/* Dropdown Menu */}
               {isRoleDropdownOpen && (
                 <div 
-                  className="absolute right-0 mt-1.5 w-60 rounded-xl bg-[#202020] border border-[#343434] shadow-2xl p-1.5 z-50 text-xs animate-in fade-in duration-100"
+                  className="absolute right-0 mt-1.5 w-72 rounded-xl bg-[#202020] border border-[#343434] shadow-2xl p-2 z-50 text-xs animate-in fade-in duration-100"
                   role="menu"
                 >
-                  <div className="px-2.5 py-1.5 text-[10px] uppercase font-mono tracking-wider text-[#898582] border-b border-[#343434] mb-1">
-                    Select Evaluator Persona
+                  <div className="px-2.5 py-1.5 text-[10px] uppercase font-mono tracking-wider text-[#898582] border-b border-[#343434] mb-1.5 flex items-center justify-between">
+                    <span>Select Persona</span>
+                    <span className="text-[#A31C1B] font-bold">{studentsList.length} in cohort</span>
                   </div>
 
-                  {(['teacher', 'student', 'advanced'] as const).map((role) => {
-                    const RoleIcon = roleLabels[role].icon;
-                    const isSelected = currentRole === role;
+                  {/* Teacher Option */}
+                  <button
+                    onClick={() => handleSelectRole('teacher')}
+                    role="menuitem"
+                    className={`w-full text-left px-2.5 py-2 rounded-lg flex items-center justify-between transition-colors mb-1.5 ${
+                      currentRole === 'teacher'
+                        ? 'bg-[#261214] border border-[#5C1D20] text-[#F5F2EF] font-semibold'
+                        : 'hover:bg-[#282828] text-[#B7B3B0]'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2.5">
+                      <div className="w-6 h-6 rounded bg-[#0B1B14] border border-[#20372B] flex items-center justify-center">
+                        <School className="w-3.5 h-3.5 text-[#A31C1B]" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-[#F5F2EF]">Prof. Vikram Sen</div>
+                        <div className="text-[10px] text-[#898582] font-mono">Instructor Diagnostics</div>
+                      </div>
+                    </div>
+                    {currentRole === 'teacher' && <Check className="w-3.5 h-3.5 text-[#A31C1B]" />}
+                  </button>
 
-                    return (
-                      <button
-                        key={role}
-                        onClick={() => handleRoleSelect(role)}
-                        role="menuitem"
-                        className={`w-full text-left px-2.5 py-2 rounded-lg flex items-center justify-between transition-colors ${
-                          isSelected
-                            ? 'bg-[#261214] border border-[#5C1D20] text-[#F5F2EF] font-semibold'
-                            : 'hover:bg-[#282828] text-[#B7B3B0]'
-                        }`}
-                      >
-                        <div className="flex items-center space-x-2">
-                          <RoleIcon className={`w-3.5 h-3.5 ${isSelected ? 'text-[#A31C1B]' : 'text-[#898582]'}`} />
-                          <div>
-                            <div className="font-medium text-[#F5F2EF]">{roleLabels[role].name}</div>
-                            <div className="text-[11px] text-[#898582]">{roleLabels[role].title}</div>
-                          </div>
-                        </div>
-                        {isSelected && <Check className="w-3.5 h-3.5 text-[#A31C1B]" />}
-                      </button>
-                    );
-                  })}
+                  {/* Cohort Students Header */}
+                  <div className="px-2.5 py-1 text-[10px] uppercase font-mono tracking-wider text-[#898582] border-t border-[#343434] pt-2 mb-1">
+                    Cohort Learners ({studentsList.length})
+                  </div>
+
+                  {studentsList.length === 0 ? (
+                    <div className="px-2.5 py-3 text-center text-[#898582] text-[11px] font-mono">
+                      No students enrolled in this cohort
+                    </div>
+                  ) : (
+                    <div className="max-h-60 overflow-y-auto space-y-1 pr-1">
+                      {studentsList.map((s) => {
+                        const isSelected = currentRole === 'student' && activeStudent?.id === s.id;
+                        const isNeedsHelp = s.overall_mastery < 45;
+                        const isAdvanced = s.overall_mastery >= 85;
+
+                        return (
+                          <button
+                            key={s.id}
+                            onClick={() => handleSelectRole('student', s.id)}
+                            role="menuitem"
+                            className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between transition-colors ${
+                              isSelected
+                                ? 'bg-[#261214] border border-[#5C1D20] text-[#F5F2EF] font-semibold'
+                                : 'hover:bg-[#282828] text-[#B7B3B0]'
+                            }`}
+                          >
+                            <div className="flex items-center space-x-2 min-w-0 pr-2">
+                              <div className="w-5 h-5 rounded bg-[#171717] border border-[#343434] flex items-center justify-center flex-shrink-0">
+                                {isAdvanced ? (
+                                  <UserCheck className="w-3 h-3 text-emerald-400" />
+                                ) : (
+                                  <GraduationCap className={`w-3 h-3 ${isNeedsHelp ? 'text-rose-400' : 'text-[#898582]'}`} />
+                                )}
+                              </div>
+                              <div className="truncate">
+                                <div className="font-medium text-[#F5F2EF] truncate text-xs">{s.name}</div>
+                                <div className="text-[10px] text-[#898582] font-mono flex items-center space-x-1">
+                                  <span>Roll {s.roll_number}</span>
+                                  <span>•</span>
+                                  <span className={isNeedsHelp ? 'text-rose-400 font-semibold' : isAdvanced ? 'text-emerald-400 font-semibold' : 'text-[#B7B3B0]'}>
+                                    {s.overall_mastery}%
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center space-x-1.5 flex-shrink-0">
+                              <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
+                                isNeedsHelp
+                                  ? 'bg-rose-950/40 text-rose-300 border-rose-800/60'
+                                  : isAdvanced
+                                  ? 'bg-emerald-950/40 text-emerald-300 border-emerald-800/60'
+                                  : 'bg-[#0B1B14] text-[#B7B3B0] border-[#20372B]'
+                              }`}>
+                                {s.status_label || (isNeedsHelp ? 'Needs Help' : isAdvanced ? 'Advanced' : 'On Track')}
+                              </span>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-[#A31C1B]" />}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -393,7 +468,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
                 <button
                   onClick={() => handleNavClick('ai-tutor')}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold flex items-center space-x-1.5 ${
+                  className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 ${
                     activeTab === 'ai-tutor' ? 'bg-[#261214] text-[#F5F2EF] border border-[#5C1D20]' : 'text-[#B7B3B0]'
                   }`}
                 >
@@ -402,7 +477,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
                 <button
                   onClick={() => handleNavClick('adaptive-quiz')}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold flex items-center space-x-1.5 ${
+                  className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 ${
                     activeTab === 'adaptive-quiz' ? 'bg-[#261214] text-[#F5F2EF] border border-[#5C1D20]' : 'text-[#B7B3B0]'
                   }`}
                 >
@@ -418,15 +493,28 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="text-[10px] font-mono uppercase tracking-wider text-[#898582] block px-2">
               Switch Evaluator Persona
             </span>
-            <div className="grid grid-cols-1 gap-1.5">
-              {(['teacher', 'student', 'advanced'] as const).map((role) => {
-                const RoleIcon = roleLabels[role].icon;
-                const isSelected = currentRole === role;
+            <div className="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto pr-1">
+              <button
+                onClick={() => handleSelectRole('teacher')}
+                className={`w-full text-left p-2.5 rounded-lg flex items-center justify-between text-xs transition-colors ${
+                  currentRole === 'teacher'
+                    ? 'bg-[#261214] border border-[#5C1D20] text-[#F5F2EF] font-semibold'
+                    : 'bg-[#202020] border border-[#343434] text-[#B7B3B0]'
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <School className={`w-3.5 h-3.5 ${currentRole === 'teacher' ? 'text-[#A31C1B]' : 'text-[#898582]'}`} />
+                  <span>Prof. Vikram Sen (Instructor)</span>
+                </div>
+                {currentRole === 'teacher' && <Check className="w-3.5 h-3.5 text-[#A31C1B]" />}
+              </button>
 
+              {studentsList.slice(0, 15).map((s) => {
+                const isSelected = currentRole === 'student' && activeStudent?.id === s.id;
                 return (
                   <button
-                    key={role}
-                    onClick={() => handleRoleSelect(role)}
+                    key={s.id}
+                    onClick={() => handleSelectRole('student', s.id)}
                     className={`w-full text-left p-2.5 rounded-lg flex items-center justify-between text-xs transition-colors ${
                       isSelected
                         ? 'bg-[#261214] border border-[#5C1D20] text-[#F5F2EF] font-semibold'
@@ -434,8 +522,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                     }`}
                   >
                     <div className="flex items-center space-x-2">
-                      <RoleIcon className={`w-3.5 h-3.5 ${isSelected ? 'text-[#A31C1B]' : 'text-[#898582]'}`} />
-                      <span>{roleLabels[role].name} ({roleLabels[role].title})</span>
+                      <GraduationCap className={`w-3.5 h-3.5 ${isSelected ? 'text-[#A31C1B]' : 'text-[#898582]'}`} />
+                      <span>{s.name} ({s.overall_mastery}%)</span>
                     </div>
                     {isSelected && <Check className="w-3.5 h-3.5 text-[#A31C1B]" />}
                   </button>

@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.config import CORS_ORIGINS
+from app.config import CORS_ORIGINS, get_gemini_status
 from app.database import engine, Base, SessionLocal, check_db_connection
 from app.seed_data import seed_database
 from app.routers import (
@@ -78,5 +78,6 @@ def health():
     return {
         "status": "healthy",
         "database": "postgresql",
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "gemini": get_gemini_status()
     }

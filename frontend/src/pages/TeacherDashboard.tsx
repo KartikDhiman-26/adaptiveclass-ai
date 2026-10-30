@@ -95,7 +95,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             Could not retrieve data from the backend or PostgreSQL instance. Please confirm the FastAPI server is running on port 8000.
           </p>
           <button
-            onClick={onRefresh}
+            onClick={() => onRefresh()}
             className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-stone-900 text-white text-xs font-semibold hover:bg-stone-800 transition-colors shadow-sm"
           >
             <RefreshCw className="w-3.5 h-3.5" />
@@ -139,7 +139,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         {/* Action Controls */}
         <div className="flex flex-wrap items-center gap-2.5 sm:self-center">
           <button
-            onClick={onRefresh}
+            onClick={() => onRefresh()}
             disabled={isLoading}
             aria-label="Refresh classroom analytics"
             className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl border border-stone-200 text-xs font-medium text-stone-700 bg-stone-50 hover:bg-stone-100 hover:text-stone-900 transition-colors shadow-sm disabled:opacity-50"

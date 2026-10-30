@@ -27,7 +27,17 @@ def test_auth_login():
     assert s_data["role"] == "student"
     assert s_data["name"] == "Aarav Sharma"
 
+def test_class_endpoints_reject_non_integer_ids():
+    # Verify that malformed URLs like [object Object] are cleanly rejected by FastAPI with HTTP 422
+    for endpoint in ["analytics", "students-needing-attention", "students"]:
+        res = client.get(f"/api/classes/[object Object]/{endpoint}")
+        assert res.status_code == 422
+        assert "integer" in res.text.lower()
+
+
 def test_class_analytics():
+    # Ensure calibrated baseline demo state
+    client.post("/api/demo/reset")
     # Fetch actual class id
     classes_res = client.get("/api/classes")
     assert classes_res.status_code == 200

@@ -43,7 +43,10 @@ def start_adaptive_quiz(req: AdaptiveStartRequest, db: Session = Depends(get_db)
         q = db.query(Question).filter(Question.concept_id == concept_id).first()
 
     if not q:
-        raise HTTPException(status_code=404, detail="No questions available for this concept")
+        q = db.query(Question).filter(Question.difficulty == "beginner").first() or db.query(Question).first()
+
+    if not q:
+        raise HTTPException(status_code=404, detail="No questions available in question bank")
 
     q_out = QuestionOut(
         question_id=q.id,
@@ -123,6 +126,20 @@ def get_next_adaptive_question(req: AdaptiveNextQuestionRequest, db: Session = D
                     Question.concept_id == req.concept_id,
                     ~Question.id.in_(all_used)
                 ).first()
+
+        # Fallback to any unused question in the question bank matching target difficulty
+        if not candidate:
+            candidate = db.query(Question)\
+                .filter(
+                    Question.difficulty == next_target_diff,
+                    ~Question.id.in_(all_used)
+                ).first()
+
+        # Final fallback to any unused question in the general question bank
+        if not candidate:
+            candidate = db.query(Question)\
+                .filter(~Question.id.in_(all_used))\
+                .first()
 
         if candidate:
             c_obj = candidate.concept

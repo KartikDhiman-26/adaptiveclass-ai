@@ -9,22 +9,31 @@ import { api } from '../api';
 
 interface StudentDashboardProps {
   studentId: number;
+  className?: string;
   onStartQuiz: (conceptId?: number) => void;
   onOpenTutor?: (conceptId?: number) => void;
 }
 
 export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   studentId,
+  className,
   onStartQuiz,
   onOpenTutor
 }) => {
   const [profile, setProfile] = useState<StudentProfileResponse | null>(null);
   const [recommendation, setRecommendation] = useState<StudentRecommendation | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!studentId) {
+      setLoading(false);
+      setProfile(null);
+      return;
+    }
     let isMounted = true;
     setLoading(true);
+    setLoadError(null);
     Promise.all([
       api.getStudentProfile(studentId),
       api.getStudentRecommendations(studentId)
@@ -36,6 +45,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
       })
       .catch((err) => {
         console.error("Failed to load student dashboard:", err);
+        if (isMounted) setLoadError(err.message || "Failed to load student diagnostic records.");
       })
       .finally(() => {
         if (isMounted) setLoading(false);
@@ -43,6 +53,54 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
 
     return () => { isMounted = false; };
   }, [studentId]);
+
+  if (!studentId) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-20 text-center space-y-4">
+        <div className="w-12 h-12 rounded-xl bg-[#0B1B14] border border-[#20372B] text-amber-400 flex items-center justify-center mx-auto">
+          <AlertOctagon className="w-6 h-6 text-amber-400" />
+        </div>
+        <h2 className="text-xl font-bold text-[#F5F2EF]">No Student Persona Selected</h2>
+        <p className="text-xs text-[#B7B3B0] max-w-md mx-auto leading-relaxed">
+          The currently active cohort has no enrolled students, or no student identity has been chosen.
+          Use the persona dropdown in the top navbar to select a student, or switch cohorts.
+        </p>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-20 text-center space-y-4">
+        <div className="w-12 h-12 rounded-xl bg-red-950/40 border border-red-800/60 text-red-400 flex items-center justify-center mx-auto">
+          <AlertOctagon className="w-6 h-6 text-red-400" />
+        </div>
+        <h2 className="text-xl font-bold text-[#F5F2EF]">Unable to Load Student Records</h2>
+        <p className="text-xs text-red-300 max-w-md mx-auto leading-relaxed">
+          {loadError}
+        </p>
+        <button
+          onClick={() => {
+            setLoadError(null);
+            setLoading(true);
+            Promise.all([
+              api.getStudentProfile(studentId),
+              api.getStudentRecommendations(studentId)
+            ])
+              .then(([profData, recData]) => {
+                setProfile(profData);
+                setRecommendation(recData);
+              })
+              .catch((err) => setLoadError(err.message || "Failed to load profile"))
+              .finally(() => setLoading(false));
+          }}
+          className="px-4 py-2 bg-[#A31C1B] hover:bg-[#C12A29] text-[#F5F2EF] rounded-xl text-xs font-semibold transition-colors"
+        >
+          Retry Diagnostic Sync
+        </button>
+      </div>
+    );
+  }
 
   if (loading || !profile) {
     return (
@@ -80,7 +138,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           </h1>
 
           <p className="text-xs sm:text-sm text-[#B7B3B0] mt-1 flex flex-wrap items-center gap-x-2">
-            <span>Course: <strong className="text-[#F5F2EF] font-semibold">B.E. CSE — Data Structures</strong></span>
+            <span>Course: <strong className="text-[#F5F2EF] font-semibold">{className || 'Data Structures'}</strong></span>
             <span className="text-[#898582] hidden sm:inline">•</span>
             <span>Status: <strong className="text-[#F5F2EF] font-semibold">{profile.status_label}</strong></span>
           </p>
@@ -384,7 +442,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             </div>
             <div className="flex items-center space-x-1.5 text-xs text-[#898582] font-mono">
               <TrendingDown className="w-3.5 h-3.5 text-[#C12A29]" />
-              <span>Downwards trend in Recursion noted</span>
+              <span>{profile.current_learning_gap ? `Focus priority: ${profile.current_learning_gap}` : 'Mastery tracked'}</span>
             </div>
           </div>
 

@@ -15,15 +15,17 @@ import {
   ClassAnalyticsResponse, StudentNeedingAttentionItem, 
   QuizSubmitResponse, SubjectSummary 
 } from './types';
-import { api } from './api';
+import { api, normalizeClassId, ClassIdentifier } from './api';
 import { subjectService } from './services/subjectService';
 import { Sparkles } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const [currentRole, setCurrentRole] = useState<'teacher' | 'student' | 'advanced'>('teacher');
+  const [currentRole, setCurrentRole] = useState<'teacher' | 'student'>('teacher');
   const [activeTab, setActiveTab] = useState<string>('landing');
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>('cs-201-data-structures');
-  const [activeStudentId, setActiveStudentId] = useState<number>(1); // Set dynamically from PostgreSQL
+  const [activeStudentId, setActiveStudentId] = useState<number | null>(null);
+  const [classList, setClassList] = useState<any[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
 
   const [analytics, setAnalytics] = useState<ClassAnalyticsResponse | null>(null);
   const [attentionStudents, setAttentionStudents] = useState<StudentNeedingAttentionItem[]>([]);
@@ -46,18 +48,41 @@ export const App: React.FC = () => {
     }, 4500);
   };
 
-  const loadClassAndAnalytics = async () => {
+  const loadClassAndAnalytics = async (overrideClassRef?: ClassIdentifier | unknown) => {
     setIsLoading(true);
     try {
       // 1. Fetch classes from PostgreSQL
       const classes = await api.getClasses();
-      const targetClassId = classes.length > 0 ? classes[0].id : 6;
+      setClassList(classes);
+      // Defensively parse overrideClassRef (ignore DOM/React events and invalid inputs)
+      let validOverrideId: number | undefined = undefined;
+      if (overrideClassRef !== undefined && overrideClassRef !== null) {
+        try {
+          validOverrideId = normalizeClassId(overrideClassRef);
+        } catch {
+          validOverrideId = undefined;
+        }
+      }
+
+      // Defensively parse existing selectedClassId
+      let safeSelectedId: number | undefined = undefined;
+      if (selectedClassId !== undefined && selectedClassId !== null) {
+        try {
+          safeSelectedId = normalizeClassId(selectedClassId);
+        } catch {
+          safeSelectedId = undefined;
+        }
+      }
+
+      const defaultClassId = classes.length > 0 && classes[0]?.id ? normalizeClassId(classes[0].id) : 1;
+      const activeClassId = validOverrideId ?? safeSelectedId ?? defaultClassId;
+      setSelectedClassId(activeClassId);
 
       // 2. Fetch analytics and attention students in parallel from PostgreSQL
       const [analyticsData, attentionData, studentsData] = await Promise.all([
-        api.getClassAnalytics(targetClassId),
-        api.getStudentsNeedingAttention(targetClassId),
-        api.getClassStudents(targetClassId)
+        api.getClassAnalytics(activeClassId),
+        api.getStudentsNeedingAttention(activeClassId),
+        api.getClassStudents(activeClassId)
       ]);
 
       setAnalytics(analyticsData);
@@ -68,25 +93,23 @@ export const App: React.FC = () => {
       const curriculumSubjects = subjectService.getCurriculumSubjects(classes, analyticsData);
       setSubjects(curriculumSubjects);
 
-      // 4. Resolve demo student IDs dynamically from PostgreSQL
+      // 4. Synchronize active student with the cohort
       if (studentsData && studentsData.length > 0) {
-        const aarav = studentsData.find((s: any) => s.email === 'student@demo.com');
-        const priya = studentsData.find((s: any) => s.email === 'advanced@demo.com');
-
-        if (currentRole === 'advanced' && priya) {
-          setActiveStudentId(priya.id);
-        } else if (aarav) {
-          setActiveStudentId(aarav.id);
-        } else {
-          setActiveStudentId(studentsData[0].id);
+        const studentStillInCohort = studentsData.find((s: any) => s.id === activeStudentId);
+        if (!studentStillInCohort) {
+          // Default to a student needing support, or the first student in the cohort
+          const supportStudent = studentsData.find((s: any) => s.overall_mastery < 55);
+          setActiveStudentId(supportStudent ? supportStudent.id : studentsData[0].id);
         }
+      } else {
+        setActiveStudentId(null);
       }
     } catch (err) {
       console.error("Failed to load class analytics:", err);
       showToast("Error connecting to backend or PostgreSQL. Ensure backend is running.");
-      // Fallback subjects for offline preview
       const fallback = subjectService.getCurriculumSubjects([], null);
       setSubjects(fallback);
+      setActiveStudentId(null);
     } finally {
       setIsLoading(false);
     }
@@ -97,17 +120,29 @@ export const App: React.FC = () => {
     loadClassAndAnalytics();
   }, []);
 
-  const handleRoleChange = (role: 'teacher' | 'student' | 'advanced') => {
-    setCurrentRole(role);
+  const activeStudent = studentsList.find((s: any) => s.id === activeStudentId) || (studentsList.length > 0 ? studentsList[0] : null);
+
+  const handleRoleChange = (role: 'teacher' | 'student' | 'advanced', studentId?: number) => {
     if (role === 'teacher') {
+      setCurrentRole('teacher');
       setActiveTab('dashboard');
-    } else if (role === 'student') {
-      const aarav = studentsList.find(s => s.email === 'student@demo.com');
-      if (aarav) setActiveStudentId(aarav.id);
-      setActiveTab('student-dashboard');
     } else if (role === 'advanced') {
-      const priya = studentsList.find(s => s.email === 'advanced@demo.com');
-      if (priya) setActiveStudentId(priya.id);
+      setCurrentRole('student');
+      const advancedStudent = studentsList.find((s: any) => s.overall_mastery >= 85) || (studentsList.length > 0 ? studentsList[0] : null);
+      if (advancedStudent) setActiveStudentId(advancedStudent.id);
+      setActiveTab('student-dashboard');
+    } else {
+      setCurrentRole('student');
+      if (studentId) {
+        setActiveStudentId(studentId);
+      } else {
+        const supportStudent = studentsList.find((s: any) => s.overall_mastery < 55) || (studentsList.length > 0 ? studentsList[0] : null);
+        if (supportStudent) {
+          setActiveStudentId(supportStudent.id);
+        } else if (studentsList.length > 0) {
+          setActiveStudentId(studentsList[0].id);
+        }
+      }
       setActiveTab('student-dashboard');
     }
   };
@@ -174,6 +209,8 @@ export const App: React.FC = () => {
       <Navbar
         currentRole={currentRole}
         onRoleChange={handleRoleChange}
+        activeStudent={activeStudent}
+        studentsList={studentsList}
         activeTab={activeTab}
         onTabChange={(tab) => setActiveTab(tab)}
         onResetDemo={handleResetDemo}
@@ -195,16 +232,21 @@ export const App: React.FC = () => {
         {activeTab === 'dashboard' && (
           <ClassOverviewPage
             subjects={subjects}
+            analytics={analytics}
             distribution={analytics?.global_distribution || {
-              advanced: 12,
-              on_track: 45,
-              needs_support: 18,
-              needs_attention: 5,
-              total: 80
+              advanced: 0,
+              on_track: 0,
+              needs_support: 0,
+              needs_attention: 0,
+              total: 0
+
+
+
+
             }}
             attentionStudents={attentionStudents}
             isLoading={isLoading}
-            onRefresh={loadClassAndAnalytics}
+            onRefresh={() => loadClassAndAnalytics()}
             onSelectSubject={handleSelectSubject}
             onViewAllSubjects={() => setActiveTab('subjects')}
             onViewStudents={() => setActiveTab('students')}
@@ -215,6 +257,9 @@ export const App: React.FC = () => {
               setActiveTab('student-dashboard');
             }}
             onOpenUploadModal={() => setIsUploadModalOpen(true)}
+            classList={classList}
+            selectedClassId={selectedClassId}
+            onSelectClass={(id: number) => loadClassAndAnalytics(id)}
           />
         )}
 
@@ -246,7 +291,7 @@ export const App: React.FC = () => {
         {activeTab === 'students' && (
           <StudentListPage
             students={studentsList}
-            onRefresh={loadClassAndAnalytics}
+            onRefresh={() => loadClassAndAnalytics()}
             isLoading={isLoading}
             onSimulateStudent={(sId) => {
               setActiveStudentId(sId);
@@ -272,7 +317,8 @@ export const App: React.FC = () => {
         {/* Student Learning Portal */}
         {activeTab === 'student-dashboard' && (
           <StudentDashboard
-            studentId={activeStudentId}
+            studentId={activeStudentId || 0}
+            className={classList.find(c => c.id === selectedClassId)?.name}
             onStartQuiz={handleStartPractice}
             onOpenTutor={(conceptId) => {
               setTutorConceptId(conceptId);
@@ -284,7 +330,7 @@ export const App: React.FC = () => {
         {/* AI Tutor Socratic Workspace */}
         {activeTab === 'ai-tutor' && (
           <AiTutorPage
-            studentId={activeStudentId}
+            studentId={activeStudentId || 0}
             initialConceptId={tutorConceptId}
             onStartPractice={(conceptId) => handleStartPractice(conceptId)}
             onViewProgress={() => setActiveTab('student-dashboard')}
@@ -294,7 +340,7 @@ export const App: React.FC = () => {
         {/* Adaptive Practice Quiz */}
         {activeTab === 'adaptive-quiz' && (
           <AdaptiveQuizPage
-            studentId={activeStudentId}
+            studentId={activeStudentId || 0}
             conceptId={quizConceptId}
             onCompleteQuiz={handleCompleteQuiz}
             onCancel={() => setActiveTab('student-dashboard')}
@@ -316,8 +362,12 @@ export const App: React.FC = () => {
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
         onUploadSuccess={(dataset) => {
-          showToast(`Dataset "${dataset.filename}" (${dataset.rows} records) successfully imported and validated!`);
-          loadClassAndAnalytics();
+          showToast(`Dataset "${dataset.filename}" (${dataset.rows.toLocaleString()} records) successfully imported! Switched to ${dataset.class_name || 'imported cohort'}.`);
+          if (dataset.class_id) {
+            loadClassAndAnalytics(dataset.class_id);
+          } else {
+            loadClassAndAnalytics();
+          }
         }}
       />
 

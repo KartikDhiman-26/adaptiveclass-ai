@@ -83,7 +83,20 @@ def get_recommendations(student_id: int, db: Session = Depends(get_db)):
         }
     }
 
-    concept_rec = topic_map.get(weak_concept, topic_map["Recursion"])
+    if weak_concept in topic_map:
+        concept_rec = topic_map[weak_concept]
+    else:
+        concept_rec = {
+            "title": f"{weak_concept} Fundamentals & Practice",
+            "topics": [
+                f"1. Core principles and definitions of {weak_concept}",
+                f"2. Step-by-step problem-solving methods for {weak_concept}",
+                f"3. Identifying and avoiding common pitfalls in {weak_concept}",
+                f"4. Practice questions and conceptual self-check"
+            ],
+            "estimated_minutes": 15,
+            "difficulty_entry": "Beginner"
+        }
 
     return {
         "student_id": student_id,

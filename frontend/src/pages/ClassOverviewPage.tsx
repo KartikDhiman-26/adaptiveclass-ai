@@ -1,5 +1,5 @@
 import React from 'react';
-import { SubjectSummary, StudentStatusDistribution, StudentNeedingAttentionItem } from '../types';
+import { SubjectSummary, StudentStatusDistribution, StudentNeedingAttentionItem, ClassAnalyticsResponse } from '../types';
 import { 
   TrendingUp, AlertOctagon, Award, Users, RefreshCw, 
   GraduationCap, ArrowRight, UploadCloud
@@ -11,6 +11,7 @@ import { StudentScoreDistribution } from '../components/StudentScoreDistribution
 interface ClassOverviewPageProps {
   subjects: SubjectSummary[];
   distribution: StudentStatusDistribution;
+  analytics?: ClassAnalyticsResponse | null;
   attentionStudents?: StudentNeedingAttentionItem[];
   isLoading: boolean;
   onRefresh: () => void;
@@ -20,11 +21,15 @@ interface ClassOverviewPageProps {
   onViewInsights: () => void;
   onSimulateStudent: (studentId: number) => void;
   onOpenUploadModal?: () => void;
+  classList?: any[];
+  selectedClassId?: number | null;
+  onSelectClass?: (classId: number) => void;
 }
 
 export const ClassOverviewPage: React.FC<ClassOverviewPageProps> = ({
   subjects,
   distribution,
+  analytics,
   isLoading,
   onRefresh,
   onSelectSubject,
@@ -32,18 +37,32 @@ export const ClassOverviewPage: React.FC<ClassOverviewPageProps> = ({
   onViewStudents,
   onViewInsights,
   onSimulateStudent,
-  onOpenUploadModal
+  onOpenUploadModal,
+  classList,
+  selectedClassId,
+  onSelectClass
 }) => {
   // Aggregate stats across subjects
-  const totalStudents = distribution.total || 80;
+  const activeClass = (classList || []).find((c) => c.id === selectedClassId);
+  const primarySubject = subjects.find((s) => s.dbClassId === selectedClassId) || subjects[0] || null;
+
+  const totalStudents = analytics?.student_count ?? activeClass?.student_count ?? distribution.total ?? 0;
   const averageAcrossSubjects =
     subjects.length > 0
       ? Math.round((subjects.reduce((sum, s) => sum + s.overallAverage, 0) / subjects.length) * 10) / 10
-      : 59.2;
+      : 0;
   const totalInterventions =
     subjects.length > 0
       ? subjects.reduce((sum, s) => sum + s.interventionCount, 0)
-      : 23;
+      : 0;
+
+  const bottleneckTopic = analytics?.weakest_concept || primarySubject?.weakestTopic;
+  const bottleneckMastery =
+    analytics?.concept_mastery?.find((c) => c.concept_name === bottleneckTopic)?.mastery_percentage ??
+    primarySubject?.weakestMastery ??
+    0;
+  const bottleneckSubject = analytics?.subject || activeClass?.subject || primarySubject?.name || 'Curriculum';
+  const bottleneckStudentCount = analytics?.recursion_support_count ?? primarySubject?.interventionCount ?? 0;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -52,10 +71,10 @@ export const ClassOverviewPage: React.FC<ClassOverviewPageProps> = ({
         <div>
           <div className="flex items-center space-x-2">
             <span className="text-[11px] font-mono uppercase tracking-wider text-[#C12A29] font-semibold">
-              Department of Computer Science & Engineering
+              {analytics?.class_name || activeClass?.name || 'Class Cohort Overview'}
             </span>
             <span className="text-[#898582]">•</span>
-            <span className="text-[11px] text-[#B7B3B0] font-mono">Academic Year 2026</span>
+            <span className="text-[11px] text-[#B7B3B0] font-mono">{analytics?.semester || activeClass?.semester || 'Academic Session'}</span>
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-bold text-[#F5F2EF] tracking-tight mt-1">
@@ -76,6 +95,23 @@ export const ClassOverviewPage: React.FC<ClassOverviewPageProps> = ({
 
         {/* Action Controls */}
         <div className="flex flex-wrap items-center gap-2.5">
+          {classList && classList.length > 1 && (
+            <div className="flex items-center space-x-2 bg-[#171717] border border-[#343434] rounded-xl px-3 py-1.5">
+              <span className="text-[11px] font-mono text-[#898582]">Cohort:</span>
+              <select
+                value={selectedClassId || ''}
+                onChange={(e) => onSelectClass?.(Number(e.target.value))}
+                className="bg-transparent text-xs font-mono font-medium text-[#F5F2EF] focus:outline-none cursor-pointer"
+              >
+                {classList.map((cl) => (
+                  <option key={cl.id} value={cl.id} className="bg-[#202020] text-[#F5F2EF]">
+                    {cl.name} ({cl.student_count} students)
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {onOpenUploadModal && (
             <button
               onClick={onOpenUploadModal}
@@ -88,7 +124,7 @@ export const ClassOverviewPage: React.FC<ClassOverviewPageProps> = ({
           )}
 
           <button
-            onClick={onRefresh}
+            onClick={() => onRefresh()}
             disabled={isLoading}
             aria-label="Recalculate metrics"
             className="inline-flex items-center space-x-1.5 px-3.5 py-2.5 rounded-xl border border-[#343434] text-xs font-mono font-medium text-[#B7B3B0] bg-[#171717] hover:bg-[#202020] hover:text-[#F5F2EF] transition-colors disabled:opacity-50"
@@ -122,7 +158,7 @@ export const ClassOverviewPage: React.FC<ClassOverviewPageProps> = ({
               <span className="text-xs text-[#898582] font-mono">weighted mastery</span>
             </div>
             <span className="text-[11px] text-[#898582] font-mono mt-2 block">
-              Across {subjects.length} engineering courses
+              Across {subjects.length} active subject{subjects.length === 1 ? '' : 's'}
             </span>
           </div>
 
@@ -133,10 +169,12 @@ export const ClassOverviewPage: React.FC<ClassOverviewPageProps> = ({
             </div>
             <div className="mt-2">
               <span className="text-xl sm:text-2xl font-bold font-mono text-rose-200 block truncate">
-                Recursion (35%)
+                {bottleneckTopic && bottleneckTopic !== 'None' ? `${bottleneckTopic} (${bottleneckMastery}%)` : 'No Critical Gaps'}
               </span>
               <span className="text-xs text-rose-400 font-mono">
-                Data Structures • 23 students
+                {bottleneckTopic && bottleneckTopic !== 'None'
+                  ? `${bottleneckSubject} • ${bottleneckStudentCount} student${bottleneckStudentCount === 1 ? '' : 's'}`
+                  : 'All topics meet foundational competency threshold'}
               </span>
             </div>
             <button

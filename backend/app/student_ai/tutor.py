@@ -863,12 +863,17 @@ class StudentTutor:
             self.current_topic = "Recursion"
         # Step 4: If no direct match, check if this is a follow-up to the current active topic
         elif topic and self._is_followup_to_current_topic(user_input):
-            matched_key = self._topic_name_to_key(topic) or "recursion"
+            matched_key = self._topic_name_to_key(topic)
+            if not matched_key:
+                return self._generate_unsupported_topic_clarification(user_input, topic)
         # Step 5: Neither direct match nor active follow-up -> return clarification
         else:
-            return self._generate_unsupported_topic_clarification(user_input)
+            return self._generate_unsupported_topic_clarification(user_input, topic)
 
-        kb = OFFLINE_TOPIC_KNOWLEDGE.get(matched_key, OFFLINE_TOPIC_KNOWLEDGE["recursion"])
+        if not matched_key or matched_key not in OFFLINE_TOPIC_KNOWLEDGE:
+            return self._generate_unsupported_topic_clarification(user_input, topic)
+
+        kb = OFFLINE_TOPIC_KNOWLEDGE[matched_key]
 
         if requested_format in REPRESENTATION_FORMAT_INSTRUCTIONS:
             return self._format_offline_representation(
@@ -1038,18 +1043,18 @@ class StudentTutor:
             f"{knowledge['steps'][0]}"
         )
 
-    def _generate_unsupported_topic_clarification(self, user_input: str) -> str:
+    def _generate_unsupported_topic_clarification(self, user_input: str, topic: Optional[str] = None) -> str:
         """Generates an honest, helpful clarification when an unsupported topic is asked offline."""
         return (
-            f"🤔 **Let's align on what you would like to learn!**\n\n"
+            f"🤔 **Offline Pedagogical Mode Active**\n\n"
             f"You asked: *\"{user_input}\"*\n\n"
             f"In **offline mode**, my built-in curriculum specifically covers:\n"
             f"1. 🔢 **Mathematics & Number Theory**: HCF (GCD), LCM, Prime Factorization, Euclidean Algorithm\n"
             f"2. 🔄 **Recursion & Backtracking**: Base cases, call stacks, unwinding, recursion trees\n"
             f"3. 📦 **Core Data Structures**: Arrays, Singly & Doubly Linked Lists, Binary Search Trees, Graphs\n"
             f"4. ⚡ **Sorting Algorithms**: Merge Sort, Quick Sort, Bubble Sort, Complexity Analysis\n\n"
-            f"💡 *Tip*: To ask completely open-ended questions across any computer science or programming topic, "
-            f"configure a `GEMINI_API_KEY` in your `.env` file.\n\n"
+            f"💡 **To enable live AI answers for {topic or 'custom school topics'}**:\n"
+            f"Set a valid `GEMINI_API_KEY` in `backend/.env` for real-time AI reasoning.\n\n"
             f"Which of the core topics above would you like to explore together?"
         )
 
@@ -1123,7 +1128,7 @@ class StudentTutor:
             r"\b(iterative|loop|recursive\s+version|recursive\s+way)\b",
             r"\b(call\s+stack|unwind|stack\s+overflow)\b",
             r"\b(edge\s+case|what\s+if\s+n|negative|zero)\b",
-            r"\b(another\s+example|more\s+examples|simpler\s+example|show\s+example)\b",
+            r"\b(another\s+example|more\s+examples|simpler\s+example|show\s+example|real[- ]world|real[- ]life|analogy|analogies)\b",
             r"\b(why|how\s+does\s+that\s+work|what\s+do\s+you\s+mean|can\s+you\s+simplify|i\s+don't\s+understand|confused)\b"
         ]
         for pattern in generic_followup_patterns:

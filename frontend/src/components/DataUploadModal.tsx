@@ -3,11 +3,12 @@ import {
   X, UploadCloud, FileSpreadsheet, CheckCircle2, 
   AlertTriangle, ArrowRight, Database
 } from 'lucide-react';
+import { api } from '../api';
 
 interface DataUploadModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onUploadSuccess?: (summary: { filename: string; rows: number }) => void;
+  onUploadSuccess?: (summary: { filename: string; rows: number; class_id?: number; class_name?: string }) => void;
 }
 
 export const DataUploadModal: React.FC<DataUploadModalProps> = ({
@@ -18,6 +19,7 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [validationResult, setValidationResult] = useState<{
     valid: boolean;
     rowCount: number;
@@ -51,38 +53,50 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
     }
   };
 
-  const handleFileSelected = (file: File) => {
+  const handleFileSelected = async (file: File) => {
     setSelectedFile(file);
     setIsProcessing(true);
+    setErrorMessage(null);
+    setValidationResult(null);
 
-    // Simulated pre-flight validation
-    setTimeout(() => {
-      setIsProcessing(false);
+    try {
+      const res = await api.validateDataset(file);
       setValidationResult({
-        valid: true,
-        rowCount: 80,
-        detectedColumns: [
-          'roll_number', 'name', 'subject', 'class', 
-          'marks', 'max_marks', 'topic', 'assessment', 'date'
-        ],
-        sampleErrors: []
+        valid: res.valid,
+        rowCount: res.row_count,
+        detectedColumns: res.detected_columns,
+        sampleErrors: res.sample_errors || []
       });
-    }, 600);
+    } catch (err: any) {
+      console.error("Dataset validation error:", err);
+      setErrorMessage(err.message || "Failed to validate dataset schema");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const handleConfirmImport = () => {
+  const handleConfirmImport = async () => {
     if (!selectedFile) return;
     setIsProcessing(true);
-    setTimeout(() => {
-      setIsProcessing(false);
+    setErrorMessage(null);
+
+    try {
+      const res = await api.uploadDataset(selectedFile);
       if (onUploadSuccess) {
         onUploadSuccess({
-          filename: selectedFile.name,
-          rows: validationResult?.rowCount || 80
+          filename: res.filename || selectedFile.name,
+          rows: res.row_count || validationResult?.rowCount || 0,
+          class_id: res.class_id,
+          class_name: res.class_name
         });
       }
       onClose();
-    }, 800);
+    } catch (err: any) {
+      console.error("Dataset upload error:", err);
+      setErrorMessage(err.message || "Failed to ingest dataset into PostgreSQL");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -169,7 +183,17 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
           {isProcessing && (
             <div className="p-4 rounded-xl bg-[#0B1B14] border border-[#20372B] text-xs text-[#B7B3B0] flex items-center space-x-3">
               <span className="w-4 h-4 rounded-full border-2 border-[#A31C1B] border-t-transparent animate-spin" />
-              <span>Analyzing schema headers and validating records...</span>
+              <span>Analyzing schema headers and validating records against PostgreSQL...</span>
+            </div>
+          )}
+
+          {errorMessage && (
+            <div className="p-3.5 rounded-xl bg-red-950/40 border border-red-800/60 text-xs text-red-200 flex items-start space-x-2.5">
+              <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-red-300">Validation Error</p>
+                <p className="text-[11px] mt-0.5 text-red-200/90 font-mono">{errorMessage}</p>
+              </div>
             </div>
           )}
 
@@ -181,7 +205,7 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
                   <span className="font-semibold text-[#F5F2EF]">Validation Passed</span>
                 </div>
                 <span className="font-mono text-[11px] text-[#A31C1B] font-bold">
-                  {validationResult.rowCount} rows verified
+                  {validationResult.rowCount.toLocaleString()} rows verified
                 </span>
               </div>
 
@@ -236,4 +260,3 @@ export const DataUploadModal: React.FC<DataUploadModalProps> = ({
     </div>
   );
 };
-

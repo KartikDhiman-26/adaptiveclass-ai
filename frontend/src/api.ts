@@ -1,4 +1,4 @@
-import {
+import type {
   ClassAnalyticsResponse,
   StudentNeedingAttentionItem,
   StudentProfileResponse,
@@ -6,11 +6,97 @@ import {
   AdaptiveNextQuestionResponse,
   QuizSubmitResponse,
   StudentRecommendation
-} from './types';
+} from './types.ts';
 
 const API_BASE = 'http://127.0.0.1:8000/api';
 
+export interface StudentTokenResponse {
+  user_id: number;
+  name: string;
+  email: string;
+  role: string;
+  class_id?: number | null;
+  token: string;
+}
+
+export interface TutorChatRequestPayload {
+  student_id: number;
+  student_name?: string;
+  session_id?: string | null;
+  message: string;
+  topic?: string | null;
+  requested_format?: 'explanation' | 'pseudocode' | 'algorithm' | 'code' | 'diagram' | null;
+}
+
+export interface TutorChatResponsePayload {
+  session_id: string;
+  message: string;
+  topic_detected?: string | null;
+  detected_cue: string;
+  confidence: number;
+  adaptation_applied: string;
+  suggested_followups: string[];
+  suggest_quiz: boolean;
+  suggested_quiz_topic?: string | null;
+  engine_used: string;
+  response_format: string;
+  ethical_disclaimer: string;
+}
+
+export type ClassIdentifier =
+  | number
+  | string
+  | { id?: number | string; class_id?: number | string; classId?: number | string; [key: string]: any };
+
+/**
+ * Normalizes any class reference (numeric ID, numeric string, or class object)
+ * into a valid integer class ID.
+ * Rejects DOM/React events, empty objects, invalid strings, and non-positive numbers.
+ */
+export function normalizeClassId(classRef: unknown): number {
+  if (typeof classRef === 'number') {
+    if (Number.isFinite(classRef) && !Number.isNaN(classRef) && classRef > 0) {
+      return Math.floor(classRef);
+    }
+    throw new Error(`Invalid numeric class ID: ${classRef}`);
+  }
+
+  if (typeof classRef === 'string') {
+    const trimmed = classRef.trim();
+    if (/^\d+$/.test(trimmed)) {
+      const parsed = parseInt(trimmed, 10);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+    throw new Error(`Invalid string class ID: "${classRef}"`);
+  }
+
+  if (classRef && typeof classRef === 'object') {
+    // Defend against DOM/React synthetic events mistakenly passed as arguments
+    if ('nativeEvent' in classRef || 'target' in classRef || 'preventDefault' in classRef) {
+      throw new Error(`Received DOM/React Event object instead of class ID. Check event handlers to avoid passing events directly.`);
+    }
+
+    const obj = classRef as Record<string, any>;
+    const rawId = obj.id ?? obj.class_id ?? obj.classId;
+    if (rawId !== undefined && rawId !== null) {
+      return normalizeClassId(rawId);
+    }
+    throw new Error(`Class object does not contain a valid ID property ('id', 'class_id', or 'classId'): ${JSON.stringify(classRef)}`);
+  }
+
+  throw new Error(`Invalid class identifier provided: ${String(classRef)}`);
+}
+
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  // Prevent malformed endpoints containing serialized objects from ever being requested
+  if (endpoint.includes('[object Object]') || endpoint.includes('[object%20Object]')) {
+    const errorMsg = `Attempted to make API request with invalid URL containing serialized object: ${endpoint}`;
+    console.error(errorMsg);
+    throw new Error(errorMsg);
+  }
+
   const url = `${API_BASE}${endpoint}`;
   try {
     const res = await fetch(url, {
@@ -22,7 +108,17 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: res.statusText }));
-      throw new Error(err.detail || `HTTP Error ${res.status}`);
+      let detailMsg: string;
+      if (typeof err.detail === 'string') {
+        detailMsg = err.detail;
+      } else if (Array.isArray(err.detail)) {
+        detailMsg = err.detail.map((d: any) => d.msg || JSON.stringify(d)).join(', ');
+      } else if (err.detail && typeof err.detail === 'object') {
+        detailMsg = JSON.stringify(err.detail);
+      } else {
+        detailMsg = `HTTP Error ${res.status}`;
+      }
+      throw new Error(detailMsg);
     }
     return res.json();
   } catch (error: any) {
@@ -40,6 +136,13 @@ export const api = {
     });
   },
 
+  getStudentToken: async (studentId: number): Promise<StudentTokenResponse> => {
+    return request<StudentTokenResponse>('/auth/student-token', {
+      method: 'POST',
+      body: JSON.stringify({ student_id: studentId })
+    });
+  },
+
   getDemoUsers: async () => {
     return request<any[]>('/auth/demo-users');
   },
@@ -49,15 +152,18 @@ export const api = {
     return request<any[]>('/classes');
   },
 
-  getClassAnalytics: async (classId: number): Promise<ClassAnalyticsResponse> => {
+  getClassAnalytics: async (classRef: ClassIdentifier): Promise<ClassAnalyticsResponse> => {
+    const classId = normalizeClassId(classRef);
     return request<ClassAnalyticsResponse>(`/classes/${classId}/analytics`);
   },
 
-  getStudentsNeedingAttention: async (classId: number): Promise<StudentNeedingAttentionItem[]> => {
+  getStudentsNeedingAttention: async (classRef: ClassIdentifier): Promise<StudentNeedingAttentionItem[]> => {
+    const classId = normalizeClassId(classRef);
     return request<StudentNeedingAttentionItem[]>(`/classes/${classId}/students-needing-attention`);
   },
 
-  getClassStudents: async (classId: number): Promise<any[]> => {
+  getClassStudents: async (classRef: ClassIdentifier): Promise<any[]> => {
+    const classId = normalizeClassId(classRef);
     return request<any[]>(`/classes/${classId}/students`);
   },
 
@@ -68,6 +174,34 @@ export const api = {
 
   getStudentRecommendations: async (studentId: number): Promise<StudentRecommendation> => {
     return request<StudentRecommendation>(`/students/${studentId}/recommendations`);
+  },
+
+  // Student AI Tutor
+  getTutorStatus: async () => {
+    return request<{
+      gemini_configured: boolean;
+      model: string;
+      mode: string;
+      active_engine: string;
+    }>('/student-tutor/status');
+  },
+
+  sendTutorChat: async (payload: TutorChatRequestPayload, token: string): Promise<TutorChatResponsePayload> => {
+    return request<TutorChatResponsePayload>('/student-tutor/chat', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    });
+  },
+
+  getTutorConversation: async (sessionId: string, studentId: number, token: string) => {
+    return request<any>(`/student-tutor/sessions/${sessionId}?student_id=${studentId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
   },
 
   // Adaptive Quiz
@@ -110,5 +244,34 @@ export const api = {
     return request<any>('/demo/reset', {
       method: 'POST'
     });
+  },
+
+  // Dataset Ingestion & Validation
+  validateDataset: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_BASE}/datasets/validate`, {
+      method: 'POST',
+      body: formData
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail) || `Validation failed (${res.status})`);
+    }
+    return res.json();
+  },
+
+  uploadDataset: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_BASE}/datasets/upload`, {
+      method: 'POST',
+      body: formData
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail) || `Upload failed (${res.status})`);
+    }
+    return res.json();
   }
 };

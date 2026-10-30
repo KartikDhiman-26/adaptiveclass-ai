@@ -39,13 +39,20 @@ def get_class_analytics(class_id: int, db: Session) -> ClassAnalyticsResponse:
 
     student_count = db.query(Student).filter(Student.class_id == class_id).count()
 
-    # Query concept averages
-    concepts = db.query(Concept).order_by(Concept.order_index.asc()).all()
+    # Query concept averages (prioritize concepts belonging to this class's performances)
+    concepts = db.query(Concept).join(ConceptPerformance, ConceptPerformance.concept_id == Concept.id)\
+        .join(Student, Student.id == ConceptPerformance.student_id)\
+        .filter(Student.class_id == class_id).distinct().order_by(Concept.order_index.asc()).all()
+    if not concepts and target_class.subject:
+        concepts = db.query(Concept).filter(Concept.subject == target_class.subject).order_by(Concept.order_index.asc()).all()
+    if not concepts:
+        concepts = []
     concept_items: List[ConceptMasteryItem] = []
     
     total_class_mastery_sum = 0.0
     weakest_concept_name = ""
     weakest_concept_score = 999.0
+    weakest_concept_id = None
     strongest_concept_name = ""
     strongest_concept_score = -1.0
 
@@ -68,6 +75,7 @@ def get_class_analytics(class_id: int, db: Session) -> ClassAnalyticsResponse:
         if rounded_avg < weakest_concept_score:
             weakest_concept_score = rounded_avg
             weakest_concept_name = concept.name
+            weakest_concept_id = concept.id
 
         if rounded_avg > strongest_concept_score:
             strongest_concept_score = rounded_avg
@@ -82,18 +90,34 @@ def get_class_analytics(class_id: int, db: Session) -> ClassAnalyticsResponse:
             status_color=color
         ))
 
-    overall_class_average = round(total_class_mastery_sum / max(len(concepts), 1), 1)
+    if weakest_concept_score == 999.0:
+        weakest_concept_score = 0.0
+    if strongest_concept_score == -1.0:
+        strongest_concept_score = 0.0
 
-    # Calculate Recursion-specific support count (< 40.0%)
+    overall_class_average = round(total_class_mastery_sum / max(len(concepts), 1), 1) if concepts else 0.0
+
+    # Calculate support count (< 40.0%) for the critical bottleneck of this class
+    target_gap_id = recursion_concept_id if recursion_concept_id else weakest_concept_id
     recursion_support_count = 0
-    if recursion_concept_id:
+    if target_gap_id:
         recursion_support_count = db.query(ConceptPerformance)\
             .join(Student, ConceptPerformance.student_id == Student.id)\
             .filter(
                 Student.class_id == class_id,
-                ConceptPerformance.concept_id == recursion_concept_id,
+                ConceptPerformance.concept_id == target_gap_id,
                 ConceptPerformance.mastery_score < 40.0
             ).count()
+    elif not target_gap_id and weakest_concept_name:
+        weakest_c = db.query(Concept).filter(Concept.name == weakest_concept_name).first()
+        if weakest_c:
+            recursion_support_count = db.query(ConceptPerformance)\
+                .join(Student, ConceptPerformance.student_id == Student.id)\
+                .filter(
+                    Student.class_id == class_id,
+                    ConceptPerformance.concept_id == weakest_c.id,
+                    ConceptPerformance.mastery_score < 40.0
+                ).count()
 
     # Calculate Global Student Distribution across all concepts
     students = db.query(Student).filter(Student.class_id == class_id).all()
@@ -253,11 +277,14 @@ def get_student_profile(student_id: int, db: Session) -> StudentProfileResponse:
         ))
 
     # Generate student AI insight
+    safe_weakest = weakest_c_name or "General Fundamentals"
+    safe_score = weakest_c_score if weakest_c_score != 999.0 else 0.0
+
     student_metric = {
         "name": student.name,
         "overall_mastery": overall_mastery,
-        "weakest_concept": weakest_c_name,
-        "weakest_score": weakest_c_score,
+        "weakest_concept": safe_weakest,
+        "weakest_score": safe_score,
         "concepts": [c.model_dump() for c in concept_scores]
     }
     ai_insight_text, suggested_steps = generate_student_insight(student_metric)
@@ -270,7 +297,7 @@ def get_student_profile(student_id: int, db: Session) -> StudentProfileResponse:
         overall_mastery=overall_mastery,
         status_label=status_label,
         concept_performance=concept_scores,
-        current_learning_gap=weakest_c_name,
+        current_learning_gap=safe_weakest,
         recent_performance=recent_quiz_items,
         ai_insight=ai_insight_text,
         suggested_steps=suggested_steps
@@ -344,33 +371,30 @@ def record_quiz_and_update_mastery(
 
     db.commit()
 
-    # 4. Recompute Class Recursion Average and Support Count directly from PostgreSQL
+    # 4. Recompute Class Averages and Support Count directly from PostgreSQL
     student = db.query(Student).filter(Student.id == student_id).first()
     class_id = student.class_id if student else 1
 
-    rec_concept = db.query(Concept).filter(Concept.name == "Recursion").first()
-    new_class_rec_avg = 35.0
-    new_support_count = 22
+    # Check for this concept's class average and support count
+    target_concept_id = concept_id
+    avg_query = db.query(func.avg(ConceptPerformance.mastery_score))\
+        .join(Student, ConceptPerformance.student_id == Student.id)\
+        .filter(Student.class_id == class_id, ConceptPerformance.concept_id == target_concept_id)\
+        .scalar()
+    new_concept_avg = round(float(avg_query), 1) if avg_query is not None else new_mastery
 
-    if rec_concept:
-        avg_query = db.query(func.avg(ConceptPerformance.mastery_score))\
-            .join(Student, ConceptPerformance.student_id == Student.id)\
-            .filter(Student.class_id == class_id, ConceptPerformance.concept_id == rec_concept.id)\
-            .scalar()
-        if avg_query is not None:
-            new_class_rec_avg = round(float(avg_query), 1)
+    support_count_query = db.query(ConceptPerformance)\
+        .join(Student, ConceptPerformance.student_id == Student.id)\
+        .filter(
+            Student.class_id == class_id,
+            ConceptPerformance.concept_id == target_concept_id,
+            ConceptPerformance.mastery_score < 40.0
+        ).count()
 
-        new_support_count = db.query(ConceptPerformance)\
-            .join(Student, ConceptPerformance.student_id == Student.id)\
-            .filter(
-                Student.class_id == class_id,
-                ConceptPerformance.concept_id == rec_concept.id,
-                ConceptPerformance.mastery_score < 40.0
-            ).count()
-
+    sign = "+" if mastery_change >= 0 else ""
     impact_msg = (
-        f"Mastery in {concept_name} updated from {old_mastery}% to {new_mastery}% (+{mastery_change}%). "
-        f"Classroom Recursion average rose to {new_class_rec_avg}%, reducing students needing support to {new_support_count}."
+        f"Mastery in {concept_name} updated from {old_mastery}% to {new_mastery}% ({sign}{mastery_change}%). "
+        f"Classroom average for {concept_name} is now {new_concept_avg}%, with {support_count_query} student(s) needing support."
     )
 
     return QuizSubmitResponse(
@@ -382,7 +406,7 @@ def record_quiz_and_update_mastery(
         new_mastery=new_mastery,
         mastery_change=mastery_change,
         concept_name=concept_name,
-        new_class_recursion_average=new_class_rec_avg,
-        new_recursion_support_count=new_support_count,
+        new_class_recursion_average=new_concept_avg,
+        new_recursion_support_count=support_count_query,
         impact_message=impact_msg
     )

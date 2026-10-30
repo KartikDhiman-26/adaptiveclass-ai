@@ -1,14 +1,6 @@
 import { TutorMessage, QuickPromptType, QuickPromptOption, TutorConcept } from '../types/tutor';
 import { StudentProfileResponse } from '../types';
-
-/**
- * SIMULATED PEDAGOGICAL TUTOR SERVICE (MOCK LAYER)
- * ----------------------------------------------------
- * NOTE FOR BACKEND TEAM:
- * This module isolates all AI Tutor conversational interactions.
- * When the backend endpoint (e.g., `POST /api/tutor/chat`) is ready,
- * replace the simulated delay and response generators below with a live API call.
- */
+import { api, TutorChatResponsePayload } from '../api';
 
 export const QUICK_PROMPTS: QuickPromptOption[] = [
   {
@@ -93,7 +85,7 @@ export const tutorService = {
    * Derives concepts and individual student mastery levels from student profile
    */
   getConceptsForStudent: (profile?: StudentProfileResponse | null): TutorConcept[] => {
-    if (!profile || !profile.concept_performance) {
+    if (!profile || !profile.concept_performance || profile.concept_performance.length === 0) {
       return DEFAULT_TUTOR_CONCEPTS;
     }
 
@@ -104,14 +96,16 @@ export const tutorService = {
       else if (c.mastery < 75) status = 'Moderate';
       else status = 'Strong';
 
-      const foundDefault = DEFAULT_TUTOR_CONCEPTS.find(dc => dc.name.toLowerCase() === c.concept_name.toLowerCase());
+      const foundDefault = DEFAULT_TUTOR_CONCEPTS.find(
+        (dc) => dc.name.toLowerCase() === c.concept_name.toLowerCase()
+      );
 
       return {
         id: c.concept_id,
         name: c.concept_name,
         mastery: c.mastery,
         status,
-        description: foundDefault ? foundDefault.description : `Core computational concept: ${c.concept_name}`,
+        description: foundDefault ? foundDefault.description : `Core curricular concept: ${c.concept_name}`,
         recommendedTopics: foundDefault ? foundDefault.recommendedTopics : ['Core Fundamentals', 'Practice Problems']
       };
     });
@@ -123,149 +117,131 @@ export const tutorService = {
   getInitialWorkspaceMessages: (conceptName: string, studentName: string, mastery: number): TutorMessage[] => {
     const isGap = mastery < 40;
     const greeting = studentName ? `Hello ${studentName.split(' ')[0]}` : 'Hello';
-    
+
+    const initialFollowups: Record<string, string[]> = {
+      recursion: [
+        'How does recursion work step-by-step under the hood?',
+        'Can you explain the base case with a simple analogy?',
+        'Show me the difference between recursion and an iterative loop'
+      ],
+      trees: [
+        'How does binary search tree lookup work?',
+        'What is the difference between in-order and pre-order traversal?',
+        'Why do balanced trees guarantee O(log N) operations?'
+      ],
+      arrays: [
+        'Why are array lookups O(1) in memory?',
+        'How does two-pointer technique work on arrays?',
+        'What are the trade-offs between arrays and linked lists?'
+      ],
+      'linked lists': [
+        'How do pointers connect nodes in memory?',
+        'How does fast and slow pointer detect cycles?',
+        'Why is inserting at head O(1) for linked lists?'
+      ],
+      sorting: [
+        'How does merge sort use divide and conquer?',
+        'Why is quicksort O(N log N) on average?',
+        'Which sorting algorithm is best for nearly sorted data?'
+      ],
+      graphs: [
+        'What is the difference between BFS and DFS?',
+        'How do adjacency lists represent connections?',
+        'When would you use Dijkstra algorithm?'
+      ],
+      mathematics: [
+        'Explain HCF and LCM with a real-world example',
+        'How does the Euclidean algorithm find GCD?',
+        'Why is HCF(a, b) * LCM(a, b) = a * b?'
+      ]
+    };
+
+    const key = conceptName.toLowerCase();
+    const followUps =
+      initialFollowups[key] || [
+        `Can you explain ${conceptName} step by step?`,
+        `Give me a real-world everyday example of ${conceptName}`,
+        `Quiz me on ${conceptName} fundamentals`
+      ];
+
     return [
       {
         id: 'msg_welcome_1',
         role: 'tutor',
         timestamp: 'Just now',
-        content: `${greeting}! Welcome to your 1-on-1 study session for **${conceptName}**.\n\nYour current recorded mastery is **${mastery}%**${
+        content: `${greeting}! Welcome to your 1-on-1 Socratic study session for **${conceptName}**.\n\nYour current recorded mastery is **${mastery}%**${
           isGap ? ' — an identified priority gap from your recent class quiz.' : '.'
         }\n\nI am here to help you build solid conceptual intuition at your own pace without any pressure. How would you like to explore this topic today?`,
-        followUpQuestions: [
-          `Why do recursive functions crash if there is no base case?`,
-          `How does the computer keep track of where to return in recursion?`,
-          `What is the difference between head recursion and tail recursion?`
-        ]
+        followUpQuestions: followUps
       }
     ];
   },
 
   /**
-   * Generates a pedagogical response based on concept, prompt type, or custom query.
-   * Includes simulated async delay (400-800ms) to mirror natural interaction.
+   * Connects to the real backend `POST /api/student-tutor/chat` endpoint.
+   * Passes real student identity, bearer token, session persistence, and requested format.
    */
   sendMessage: async (
     conceptName: string,
     messageText: string,
-    promptType: QuickPromptType = 'custom'
+    promptType: QuickPromptType = 'custom',
+    studentId: number,
+    studentName?: string,
+    token?: string,
+    sessionId?: string | null,
+    conceptId?: number
   ): Promise<TutorMessage> => {
-    // Simulate real network latency
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    if (!studentId) {
+      throw new Error('Please select an active student persona before starting a tutor chat session.');
+    }
 
+    // Resolve bearer token if not directly passed
+    let authToken = token;
+    if (!authToken) {
+      const tokenRes = await api.getStudentToken(studentId);
+      authToken = tokenRes.token;
+    }
+
+    let requestedFormat: 'explanation' | 'pseudocode' | 'algorithm' | 'code' | 'diagram' | null = null;
+    if (promptType === 'step_by_step') {
+      requestedFormat = 'algorithm';
+    } else if (promptType === 'eli5' || promptType === 'real_world' || promptType === 'quiz_me') {
+      requestedFormat = 'explanation';
+    }
+
+    const payload = {
+      student_id: studentId,
+      student_name: studentName || 'Student',
+      session_id: sessionId || null,
+      message: messageText,
+      topic: conceptName,
+      requested_format: requestedFormat
+    };
+
+    const res: TutorChatResponsePayload = await api.sendTutorChat(payload, authToken);
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    // 1. TEACH ME LIKE I'M FIVE (ELI5)
-    if (promptType === 'eli5' || messageText.toLowerCase().includes('like i\'m five') || messageText.toLowerCase().includes('eli5')) {
-      if (conceptName === 'Recursion') {
-        return {
-          id: `tutor_${Date.now()}`,
-          role: 'tutor',
-          timestamp,
-          quickPromptType: 'eli5',
-          content: `Think of **Recursion** like a set of **Russian Nesting Dolls (Matryoshka)** 🪆\n\n1. **The Recursive Step**: You open a big doll, and inside you find another doll that looks almost the same, just slightly smaller. You keep opening them one by one.\n\n2. **The Base Case**: Eventually, you open a doll and find a **solid tiny wooden baby** that does *not* open! This is your **Base Case** — the rule that tells you "Stop opening dolls!".\n\n3. **Returning Results**: Now that you've reached the tiny baby, you close the dolls back up, one inside the other, until the whole set is complete.\n\n**The Golden Rule**: Without that tiny baby doll (the Base Case), you'd be looking for more dolls forever until your table collapses. In programming, that collapse is called a **Stack Overflow**!`,
-          followUpQuestions: [
-            'Can a function have more than one base case?',
-            'What happens if the doll gets bigger instead of smaller?'
-          ],
-          suggestedAction: {
-            label: 'Test this mental model in Adaptive Practice',
-            actionType: 'start_quiz',
-            conceptId: 4
-          }
-        };
-      } else if (conceptName === 'Trees') {
-        return {
-          id: `tutor_${Date.now()}`,
-          role: 'tutor',
-          timestamp,
-          quickPromptType: 'eli5',
-          content: `Imagine a **family tree** upside down! 🌱\n\nAt the very top sits the great-grandparent (the **Root**). From them branch out parents, and from parents branch out children.\n\nIn a **Binary Search Tree (BST)**, there is a strict house rule:\n- Anyone **younger/smaller** sits on the **Left** bench.\n- Anyone **older/larger** sits on the **Right** bench.\n\nBecause everyone follows this rule, if you are looking for age 15, you never have to search the whole room — you just compare at each person and turn Left or Right!`,
-          followUpQuestions: [
-            'What makes a tree "balanced"?',
-            'What is a leaf node?'
-          ]
-        };
-      }
-    }
-
-    // 2. EXPLAIN STEP BY STEP
-    if (promptType === 'step_by_step' || messageText.toLowerCase().includes('step by step') || messageText.toLowerCase().includes('step-by-step')) {
-      if (conceptName === 'Recursion') {
-        return {
-          id: `tutor_${Date.now()}`,
-          role: 'tutor',
-          timestamp,
-          quickPromptType: 'step_by_step',
-          content: `Let's trace how the computer executes a recursive function step-by-step using **factorial(3)**:\n\n**Phase 1: Pushing onto the Call Stack**\n- Step 1: Call \`factorial(3)\`. It needs \`3 * factorial(2)\`. Pauses execution and pushes frame onto stack.\n- Step 2: Call \`factorial(2)\`. It needs \`2 * factorial(1)\`. Pauses and pushes frame.\n- Step 3: Call \`factorial(1)\`. It hits the **Base Case** (\`n <= 1\`)! Returns \`1\` immediately.\n\n**Phase 2: Unwinding the Stack (Popping)**\n- Step 4: \`factorial(2)\` resumes: receives \`1\`, calculates \`2 * 1 = 2\`, and returns \`2\`.\n- Step 5: \`factorial(3)\` resumes: receives \`2\`, calculates \`3 * 2 = 6\`, and returns \`6\`.\n\nThe stack is now completely clear, and the final answer is **6**.`,
-          codeSnippet: {
-            language: 'python',
-            code: `def factorial(n):\n    # 1. Base Case: stops recursion\n    if n <= 1:\n        return 1\n    # 2. Recursive Step: breaks problem into smaller subproblem\n    return n * factorial(n - 1)`,
-            explanation: 'Notice how each call reduces n toward the terminating condition (n <= 1).'
-          },
-          followUpQuestions: [
-            'What is the maximum call stack depth for factorial(n)?',
-            'Why does tail-recursion save stack space?'
-          ],
-          suggestedAction: {
-            label: 'Try a Call Stack Tracing Problem in Quiz',
-            actionType: 'start_quiz',
-            conceptId: 4
-          }
-        };
-      }
-    }
-
-    // 3. REAL LIFE EXAMPLE
-    if (promptType === 'real_world' || messageText.toLowerCase().includes('real life') || messageText.toLowerCase().includes('real world')) {
-      if (conceptName === 'Recursion') {
-        return {
-          id: `tutor_${Date.now()}`,
-          role: 'tutor',
-          timestamp,
-          quickPromptType: 'real_world',
-          content: `Here is a real-world software engineering example you use every day: **Folder Directory Scanning** 📁\n\nWhen your computer searches for a file across your hard drive:\n\n1. It looks inside the current folder.\n2. For every file it finds, it checks if it's the target.\n3. For every **subfolder** it finds, it calls the exact same \`searchFolder()\` function recursively!\n4. The **Base Case** is an empty folder or a folder with only files and no subdirectories.\n\nOther massive real-world examples:\n- **JSON / XML Parsing**: Web APIs parse nested objects using recursive descent parsers.\n- **DOM Rendering**: Your web browser parses HTML tags like \`<div><span><p></p></span></div>\` as a recursive tree.`,
-          followUpQuestions: [
-            'How does Google Maps use recursion in pathfinding?',
-            'Can recursion cause a server to run out of memory?'
-          ]
-        };
-      }
-    }
-
-    // 4. QUIZ ME
-    if (promptType === 'quiz_me' || messageText.toLowerCase().includes('quiz me') || messageText.toLowerCase().includes('quiz')) {
-      return {
-        id: `tutor_${Date.now()}`,
-        role: 'tutor',
-        timestamp,
-        quickPromptType: 'quiz_me',
-        content: `Here is a quick diagnostic check for **${conceptName}**:\n\n**Question**: Look at the following recursive code snippet:\n\`\`\`python\ndef mystery(n):\n    if n == 0:\n        return 0\n    return n + mystery(n - 2)\n\`\`\`\n\nWhat happens if someone calls \`mystery(5)\`?\n\n**A)** It returns 9.\n**B)** It terminates with a Stack Overflow Error.\n**C)** It returns 0.\n**D)** It returns an infinite loop without using stack memory.\n\nTake a moment to trace \`n = 5 -> 3 -> 1 -> -1 -> ...\`! Reply with your answer and reasoning.`,
-        followUpQuestions: [
-          'How can we fix the base case to handle odd numbers safely?',
-          'What would mystery(4) return?'
-        ],
-        suggestedAction: {
-          label: 'Launch Full 5-Question Adaptive Quiz',
-          actionType: 'start_quiz',
-          conceptId: 4
-        }
-      };
-    }
-
-    // 5. DEFAULT / CUSTOM CONVERSATIONAL RESPONSE
     return {
       id: `tutor_${Date.now()}`,
       role: 'tutor',
       timestamp,
-      quickPromptType: 'custom',
-      content: `That is a great question about **${conceptName}**!\n\nWhen addressing "${messageText.slice(0, 70)}...", keep the core invariant in mind: every operation must preserve the fundamental properties of the data structure while progressing closer toward termination.\n\nWould you like me to:\n1. Break this down with a visual diagram?\n2. Show a clean Python / C++ code snippet?\n3. Relate this directly to the questions on your class exam?`,
-      followUpQuestions: [
-        `Explain step-by-step with code`,
-        `Give me a visual ASCII representation`,
-        `Ready for practice quiz`
-      ]
+      quickPromptType: promptType,
+      content: res.message,
+      followUpQuestions: res.suggested_followups,
+      engineUsed: res.engine_used,
+      adaptationApplied: res.adaptation_applied,
+      topicDetected: res.topic_detected || conceptName,
+      suggestQuiz: res.suggest_quiz,
+      suggestedQuizTopic: res.suggested_quiz_topic || undefined,
+      sessionId: res.session_id,
+      suggestedAction: res.suggest_quiz
+        ? {
+            label: `Launch Adaptive Quiz on ${res.suggested_quiz_topic || conceptName}`,
+            actionType: 'start_quiz',
+            conceptId: conceptId,
+            topicName: res.suggested_quiz_topic || conceptName
+          }
+        : undefined
     };
   }
 };
-

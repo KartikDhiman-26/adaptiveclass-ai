@@ -13,14 +13,24 @@ def generate_classroom_insight(metrics: Dict[str, Any]) -> AiInsightResponse:
     otherwise gracefully and immediately uses the deterministic rule-based engine.
     Strictly follows the WHAT / WHY / SUGGESTED ACTION / DISCLAIMER structure.
     """
-    weakest = metrics.get("weakest_concept", "Recursion")
-    weakest_mastery = metrics.get("weakest_mastery", 35.0)
-    student_count = metrics.get("student_count", 80)
-    rec_support_count = metrics.get("recursion_support_count", 23)
-    rec_support_pct = metrics.get("recursion_support_pct", 28.8)
-    adv_count = metrics.get("advanced_count", 12)
-    strongest = metrics.get("strongest_concept", "Arrays")
-    strongest_mastery = metrics.get("strongest_mastery", 82.0)
+    weakest = metrics.get("weakest_concept") or "Curriculum Foundations"
+    weakest_mastery = float(metrics.get("weakest_mastery", 0.0) or 0.0)
+
+    student_count = int(metrics.get("student_count", 0) or 0)
+    rec_support_count = int(metrics.get("recursion_support_count", 0) or 0)
+    rec_support_pct = float(metrics.get("recursion_support_pct", 0.0) or 0.0)
+    adv_count = int(metrics.get("advanced_count", 0) or 0)
+    strongest = metrics.get("strongest_concept") or "Core Topics"
+    strongest_mastery = float(metrics.get("strongest_mastery", 0.0) or 0.0)
+    subject = metrics.get("subject") or "Academic Curriculum"
+    class_name = metrics.get("class_name") or "Cohort"
+
+
+
+
+
+
+
 
     # Attempt Gemini generation if API key is provided
     if GEMINI_API_KEY:
@@ -33,7 +43,7 @@ def generate_classroom_insight(metrics: Dict[str, Any]) -> AiInsightResponse:
 
             prompt = f"""
 You are an expert AI teaching assistant for college computer science professors.
-Analyze this Data Structures class performance data:
+Analyze this {subject} class ({class_name}) performance data:
 - Total Students: {student_count}
 - Weakest Concept: {weakest} (Mastery: {weakest_mastery}%)
 - Students needing support in {weakest} (< 40% threshold): {rec_support_count} students ({rec_support_pct}%)
@@ -87,14 +97,27 @@ Respond with pure valid JSON only, no markdown backticks.
         f"{weakest} is currently the largest measured learning gap in the classroom, "
         f"with a class mastery of {weakest_mastery}%."
     )
+    if "recursion" in weakest.lower():
+        concept_detail = "primarily faltering on base case formulation and call stack tracing."
+        action_detail = (
+            f"Conduct a targeted {weakest.lower()} revision session focusing on base cases and stack frames "
+            f"before introducing advanced tree and graph algorithms."
+        )
+    elif "tree" in weakest.lower():
+        concept_detail = "primarily struggling with binary search tree invariants and traversals."
+        action_detail = f"Conduct a targeted {weakest.lower()} revision session on tree invariants and depth-first traversal patterns."
+    elif "list" in weakest.lower():
+        concept_detail = "facing difficulties with pointer updates and boundary edge conditions."
+        action_detail = f"Conduct a hands-on {weakest.lower()} workshop focusing on pointer manipulation and two-pointer traversal."
+    else:
+        concept_detail = f"struggling with core foundational mechanisms of {weakest}."
+        action_detail = f"Conduct a targeted interactive review and guided practice session on {weakest} core concepts."
+
     why_text = (
         f"{rec_support_count} of {student_count} students ({rec_support_pct}%) are below the 40% support threshold, "
-        f"primarily faltering on base case formulation and call stack tracing."
+        f"{concept_detail}"
     )
-    suggested_action_text = (
-        f"Conduct a targeted {weakest.lower()} revision session focusing on base cases and stack frames "
-        f"before introducing advanced tree and graph algorithms."
-    )
+    suggested_action_text = action_detail
     enrichment_action_text = (
         f"{adv_count} students are consistently demonstrating high mastery (≥85%). "
         f"Suggested enrichment: Assign AVL tree rotations and competitive programming challenge sets."
@@ -118,8 +141,18 @@ def generate_student_insight(metrics: Dict[str, Any]) -> Tuple[str, List[str]]:
     """
     name = metrics.get("name", "Student")
     overall = metrics.get("overall_mastery", 61.0)
-    weakest = metrics.get("weakest_concept", "Recursion")
-    weakest_score = metrics.get("weakest_score", 28.0)
+    weakest = metrics.get("weakest_concept") or "Curriculum Foundations"
+    weakest_mastery = float(metrics.get("weakest_mastery", 0.0) or 0.0)
+
+    student_count = int(metrics.get("student_count", 0) or 0)
+    rec_support_count = int(metrics.get("recursion_support_count", 0) or 0)
+    rec_support_pct = float(metrics.get("recursion_support_pct", 0.0) or 0.0)
+    adv_count = int(metrics.get("advanced_count", 0) or 0)
+    strongest = metrics.get("strongest_concept") or "Core Topics"
+    strongest_mastery = float(metrics.get("strongest_mastery", 0.0) or 0.0)
+    subject = metrics.get("subject") or "Academic Curriculum"
+    class_name = metrics.get("class_name") or "Cohort"
+    weakest_score = float(metrics.get("weakest_score", metrics.get("weakest_mastery", 0.0)) or 0.0)
 
     # Determine strong areas (>70%)
     concepts = metrics.get("concepts", [])

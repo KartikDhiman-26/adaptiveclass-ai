@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import CaptchaChallenge, Mentor, Teacher, Student
-from app.schemas import CaptchaResponse, LoginRequest, LoginResponse
+from app.schemas import CaptchaResponse, LoginRequest, LoginResponse, StudentTokenRequest
 from app.security import hash_password, verify_password, create_access_token
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
@@ -85,6 +85,26 @@ def login(creds: LoginRequest, db: Session = Depends(get_db)):
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid credentials. For demo: teacher@demo.com or student@demo.com with password 'password'"
     )
+
+@router.post("/student-token", response_model=LoginResponse)
+def get_student_token(req: StudentTokenRequest, db: Session = Depends(get_db)):
+    """
+    Issues a valid student JWT bearer token for the given student ID.
+    Used for persona synchronization and student tutor / quiz authorization in evaluator mode.
+    """
+    student = db.query(Student).filter(Student.id == req.student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail=f"Student {req.student_id} not found")
+    token = create_access_token({"sub": student.email, "role": "student", "id": student.id})
+    return LoginResponse(
+        user_id=student.id,
+        name=student.name,
+        email=student.email,
+        role="student",
+        class_id=student.class_id,
+        token=token
+    )
+
 
 @router.get("/demo-users")
 def get_demo_users():

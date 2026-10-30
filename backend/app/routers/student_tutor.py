@@ -31,9 +31,22 @@ from app.student_ai.quiz_generator import (
     AdaptiveQuizSession, QuizQuestion, find_question_for_session,
     evaluate_student_answer, get_available_topics
 )
+from app.config import get_gemini_status
 from app.student_ai.emotion_detector import ETHICAL_DISCLAIMER
 
 router = APIRouter(prefix="/api/student-tutor", tags=["Student AI Tutor"])
+
+@router.get("/status")
+def tutor_status():
+    """Returns safe runtime status of Gemini / Offline engine configuration without exposing credentials."""
+    status = get_gemini_status()
+    return {
+        "gemini_configured": status["configured"],
+        "model": status["model"],
+        "mode": status["mode"],
+        "active_engine": "gemini" if status["configured"] else "offline_fallback"
+    }
+
 
 @router.get("/topics", response_model=List[str])
 def list_available_topics():

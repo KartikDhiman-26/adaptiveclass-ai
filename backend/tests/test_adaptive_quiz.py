@@ -98,6 +98,7 @@ def test_no_duplicate_questions_in_session():
     assert len(served_ids) == len(set(served_ids))
 
 
+@patch("app.student_ai.quiz_generator.GEMINI_API_KEY", "")
 def test_unknown_quiz_topic_does_not_serve_an_unrelated_topic():
     session = AdaptiveQuizSession(topic="Quantum Mechanics", starting_difficulty="beginner")
 

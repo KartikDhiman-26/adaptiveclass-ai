@@ -51,8 +51,9 @@ def _fallback_analysis(rows: list[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def analyze_dataset(rows: list[Dict[str, Any]]) -> tuple[Dict[str, Any], str]:
+    statistical_summary = _fallback_analysis(rows)
     if not GEMINI_API_KEY:
-        return _fallback_analysis(rows), "Deterministic Dataset Analysis"
+        return statistical_summary, "Deterministic Dataset Analysis"
 
     try:
         from google import genai
@@ -63,7 +64,7 @@ def analyze_dataset(rows: list[Dict[str, Any]]) -> tuple[Dict[str, Any], str]:
             "with keys summary, subject_averages, topic_gaps, at_risk_students, "
             "performance_trends, recommendations. Use only the supplied data. "
             "Do not infer medical, psychological, or demographic claims. Dataset rows: "
-            + json.dumps(rows, default=str)
+            + json.dumps(statistical_summary, default=str)
         )
         response = client.models.generate_content(
             model="gemini-2.5-flash",
