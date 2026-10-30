@@ -1,5 +1,5 @@
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 
 class LoginRequest(BaseModel):
@@ -24,26 +24,51 @@ class CaptchaResponse(BaseModel):
     expires_at: datetime
 
 
-class MarkInput(BaseModel):
-    student_id: int
-    class_id: int
-    subject: str
-    marks_obtained: float
-    max_marks: float
-
-
-class MarkResponse(MarkInput):
+class DatasetUploadResponse(BaseModel):
     id: int
-    student_name: str
+    filename: str
+    file_type: str
+    status: str
+    row_count: int
+    error_count: int
+    uploaded_at: datetime
+
+
+class DatasetRowResponse(BaseModel):
+    id: int
     roll_number: str
-    percentage: float
-    updated_at: datetime
+    name: str
+    subject: str
+    class_name: str
+    marks: float
+    max_marks: float
+    topic: Optional[str] = None
+    assessment: Optional[str] = None
+    date: Optional[str] = None
 
 
-class MarkImportResponse(BaseModel):
-    imported: int
-    updated: int
-    errors: List[Dict[str, Any]]
+class DatasetUploadDetailResponse(DatasetUploadResponse):
+    errors: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class DatasetAnalysisResponse(BaseModel):
+    dataset_id: int
+    analysis_type: str
+    model_name: str
+    result: Dict[str, Any]
+    created_at: datetime
+
+
+class StudentAiChatRequest(BaseModel):
+    message: str
+    topic: Optional[str] = None
+    difficulty: Optional[str] = None
+
+
+class StudentAiResponse(BaseModel):
+    response_type: str
+    content: Dict[str, Any]
+    model_name: str
 
 class ConceptMasteryItem(BaseModel):
     concept_id: int

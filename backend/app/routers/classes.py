@@ -6,7 +6,7 @@ from app.database import get_db
 from app.models import Class, Student, Concept, ConceptPerformance
 from app.schemas import ClassAnalyticsResponse, StudentNeedingAttentionItem
 from app.analytics_engine import get_class_analytics, get_students_needing_attention, get_student_status_label
-from app.routers.marks import current_staff
+from app.dependencies import current_staff
 
 router = APIRouter(prefix="/api/classes", tags=["Classes"])
 

@@ -38,6 +38,54 @@ class CaptchaChallenge(Base):
     used = Column(Boolean, default=False, nullable=False)
 
 
+class DatasetUpload(Base):
+    __tablename__ = "dataset_uploads"
+
+    id = Column(Integer, primary_key=True, index=True)
+    filename = Column(String(255), nullable=False)
+    file_type = Column(String(20), nullable=False)
+    uploaded_by_id = Column(Integer, nullable=False, index=True)
+    uploaded_by_role = Column(String(20), nullable=False)
+    status = Column(String(30), nullable=False, default="processed")
+    row_count = Column(Integer, nullable=False, default=0)
+    error_count = Column(Integer, nullable=False, default=0)
+    uploaded_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    rows = relationship("DatasetRow", back_populates="dataset", cascade="all, delete-orphan")
+    analyses = relationship("AnalysisResult", back_populates="dataset", cascade="all, delete-orphan")
+
+
+class DatasetRow(Base):
+    __tablename__ = "dataset_rows"
+
+    id = Column(Integer, primary_key=True, index=True)
+    dataset_id = Column(Integer, ForeignKey("dataset_uploads.id"), nullable=False, index=True)
+    roll_number = Column(String(50), nullable=False, index=True)
+    student_name = Column(String(100), nullable=False)
+    subject = Column(String(100), nullable=False, index=True)
+    class_name = Column(String(150), nullable=False, index=True)
+    marks = Column(Float, nullable=False)
+    max_marks = Column(Float, nullable=False)
+    topic = Column(String(150), nullable=True, index=True)
+    assessment = Column(String(150), nullable=True)
+    assessment_date = Column(String(50), nullable=True)
+
+    dataset = relationship("DatasetUpload", back_populates="rows")
+
+
+class AnalysisResult(Base):
+    __tablename__ = "analysis_results"
+
+    id = Column(Integer, primary_key=True, index=True)
+    dataset_id = Column(Integer, ForeignKey("dataset_uploads.id"), nullable=False, index=True)
+    analysis_type = Column(String(50), nullable=False)
+    model_name = Column(String(100), nullable=False)
+    result_json = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    dataset = relationship("DatasetUpload", back_populates="analyses")
+
+
 class TeacherSubject(Base):
     __tablename__ = "teacher_subjects"
     __table_args__ = (UniqueConstraint("teacher_id", "subject", name="uq_teacher_subject"),)
@@ -75,28 +123,6 @@ class Student(Base):
     class_group = relationship("Class", back_populates="students")
     performances = relationship("ConceptPerformance", back_populates="student", cascade="all, delete-orphan")
     quiz_attempts = relationship("QuizAttempt", back_populates="student", cascade="all, delete-orphan")
-    marks = relationship("Mark", back_populates="student", cascade="all, delete-orphan")
-
-
-class Mark(Base):
-    __tablename__ = "marks"
-    __table_args__ = (
-        UniqueConstraint("student_id", "class_id", "subject", name="uq_student_class_subject_mark"),
-    )
-
-    id = Column(Integer, primary_key=True, index=True)
-    student_id = Column(Integer, ForeignKey("students.id"), nullable=False, index=True)
-    class_id = Column(Integer, ForeignKey("classes.id"), nullable=False, index=True)
-    subject = Column(String(100), nullable=False, index=True)
-    marks_obtained = Column(Float, nullable=False)
-    max_marks = Column(Float, nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
-                        onupdate=lambda: datetime.now(timezone.utc), nullable=False)
-
-    student = relationship("Student", back_populates="marks")
-    class_group = relationship("Class")
-
-
 class Concept(Base):
     __tablename__ = "concepts"
 

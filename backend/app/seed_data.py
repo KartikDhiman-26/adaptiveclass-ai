@@ -1,7 +1,7 @@
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
 from app.models import (
-    Teacher, Mentor, TeacherSubject, Mark, Class, Student, Concept, Question, QuizAttempt, QuizAttemptAnswer, ConceptPerformance
+    Teacher, Mentor, TeacherSubject, Class, Student, Concept, Question, QuizAttempt, QuizAttemptAnswer, ConceptPerformance
 )
 from app.security import hash_password
 
@@ -545,7 +545,6 @@ def seed_database(db: Session, force: bool = False):
         print("[SEED] Force flag enabled: resetting existing records...")
         db.query(QuizAttemptAnswer).delete()
         db.query(QuizAttempt).delete()
-        db.query(Mark).delete()
         db.query(ConceptPerformance).delete()
         db.query(Question).delete()
         db.query(Student).delete()

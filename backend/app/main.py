@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import CORS_ORIGINS
 from app.database import engine, Base, SessionLocal, check_db_connection
 from app.seed_data import seed_database
-from app.routers import auth, classes, students, quiz, demo, marks
+from app.routers import auth, datasets, student_ai
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -30,8 +30,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="AdaptiveClass AI API",
-    description="Adaptive Learning Intelligence Platform for College Classrooms",
-    version="1.0.0",
+    description="Dataset-driven AI analysis and personalized student learning platform",
+    version="2.0.0",
     lifespan=lifespan
 )
 
@@ -46,17 +46,14 @@ app.add_middleware(
 
 # Register routers
 app.include_router(auth.router)
-app.include_router(classes.router)
-app.include_router(students.router)
-app.include_router(quiz.router)
-app.include_router(demo.router)
-app.include_router(marks.router)
+app.include_router(datasets.router)
+app.include_router(student_ai.router)
 
 @app.get("/")
 def root():
     return {
         "message": "Welcome to AdaptiveClass AI API",
-        "philosophy": "AI augments the teacher; it does not replace the teacher.",
+        "philosophy": "AI augments the teacher and personalizes student learning.",
         "docs_url": "/docs",
         "database": "PostgreSQL 17",
         "status": "online"

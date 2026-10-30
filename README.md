@@ -108,7 +108,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 API Documentation will be available at `http://127.0.0.1:8000/docs`.
 
-### Staff login and marks API
+### Staff login and dataset analysis API
 
 `GET /api/auth/captcha` creates a five-minute, single-use arithmetic captcha. New
 staff clients submit its `captcha_id` and answer with `login_id`, `password`, and
@@ -116,23 +116,38 @@ receive a JWT from `POST /api/auth/login`. The seeded mentor account is
 `mentor@demo.com` / `password`; the existing teacher demo account remains
 `teacher@demo.com` / `password`.
 
-Marks are stored with a unique `(student, class, subject)` key. Staff clients
-send the JWT as `Authorization: Bearer <token>`:
+Staff clients send the JWT as `Authorization: Bearer <token>`. Teachers and
+mentors upload datasets only; there is no marks-entry workflow. Supported formats
+are `.xlsx`, `.xlsm`, `.csv`, and `.json`. Each row must contain:
 
-- `POST /api/marks` upserts one student mark (`student_id`, `class_id`, `subject`,
-  `marks_obtained`, `max_marks`).
-- `POST /api/marks/import` accepts `.xlsx` files with a header row containing
-  `roll_number`, `class_id`, `subject`, `marks`, and `max_marks`. Invalid rows are
-  returned in `errors`; valid rows are committed in the same request.
+```text
+roll_number, name, subject, class, marks, max_marks, topic, assessment, date
+```
 
-Teachers can update only their assigned class subject. Mentors can update marks
-for every class. A subject must match the class subject, and marks must be between
-zero and the maximum.
+Dataset endpoints:
 
-Role-protected class analytics are available at
-`GET /api/classes/{class_id}/secure-analytics`; teachers can access their assigned
-class and mentors can access every class. The original unprotected demo analytics
-routes are retained for the existing evaluator flow.
+- `POST /api/datasets/upload` validates and stores a dataset.
+- `GET /api/datasets` lists datasets owned by the current teacher or all datasets
+  for a mentor.
+- `GET /api/datasets/{dataset_id}/rows` returns normalized rows.
+- `POST /api/datasets/{dataset_id}/analysis` generates teacher dashboard analysis
+  using Gemini when `GEMINI_API_KEY` is configured, with a deterministic fallback
+  for local development.
+- `GET /api/datasets/{dataset_id}/analysis` returns saved analyses.
+
+The analysis includes class/subject summaries, topic gaps, at-risk students,
+performance trends, and recommendations. Direct `/api/marks` endpoints are not
+registered in the new workflow.
+
+Student AI endpoints require a student JWT:
+
+- `POST /api/student-ai/chat`
+- `POST /api/student-ai/quiz`
+- `POST /api/student-ai/learning-plan`
+- `GET /api/student-ai/resources?topic=...&difficulty=...`
+
+These endpoints use the student's roll number to connect uploaded performance
+rows to AI-generated learning interactions.
 
 ### 3. Frontend Setup
 ```cmd
