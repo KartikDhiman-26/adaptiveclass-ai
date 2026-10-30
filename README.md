@@ -145,9 +145,17 @@ Student AI endpoints require a student JWT:
 - `POST /api/student-ai/quiz`
 - `POST /api/student-ai/learning-plan`
 - `GET /api/student-ai/resources?topic=...&difficulty=...`
+- `POST /api/student-ai/attempts` records quiz score and question-level results.
+- `GET /api/student-ai/report` lets a student view their activity report.
+- `GET /api/student-ai/reports/{student_id}` lets an authorized teacher or mentor
+  view the student's AI activity report.
 
 These endpoints use the student's roll number to connect uploaded performance
-rows to AI-generated learning interactions.
+rows to AI-generated learning interactions. Every AI request stores the student's
+message, topic, difficulty, AI response, model, and timestamp. Quiz attempts are
+stored separately with scores and result details. The report analyzes the stored
+conversation and attempts and includes topics discussed, quiz performance,
+learning signals, and suggested teacher actions.
 
 ### 3. Frontend Setup
 ```cmd

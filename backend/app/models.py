@@ -123,6 +123,55 @@ class Student(Base):
     class_group = relationship("Class", back_populates="students")
     performances = relationship("ConceptPerformance", back_populates="student", cascade="all, delete-orphan")
     quiz_attempts = relationship("QuizAttempt", back_populates="student", cascade="all, delete-orphan")
+    ai_interactions = relationship("StudentAIInteraction", back_populates="student", cascade="all, delete-orphan")
+    ai_attempts = relationship("StudentAIAttempt", back_populates="student", cascade="all, delete-orphan")
+    ai_reports = relationship("StudentAIReport", back_populates="student", cascade="all, delete-orphan")
+
+
+class StudentAIInteraction(Base):
+    __tablename__ = "student_ai_interactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False, index=True)
+    interaction_type = Column(String(50), nullable=False, index=True)
+    message = Column(Text, nullable=False)
+    topic = Column(String(150), nullable=True)
+    difficulty = Column(String(50), nullable=True)
+    response_json = Column(Text, nullable=False)
+    model_name = Column(String(100), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    student = relationship("Student", back_populates="ai_interactions")
+
+
+class StudentAIAttempt(Base):
+    __tablename__ = "student_ai_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False, index=True)
+    interaction_id = Column(Integer, ForeignKey("student_ai_interactions.id"), nullable=True)
+    topic = Column(String(150), nullable=True)
+    difficulty = Column(String(50), nullable=True)
+    score = Column(Float, nullable=False)
+    total_questions = Column(Integer, nullable=False)
+    result_json = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    student = relationship("Student", back_populates="ai_attempts")
+
+
+class StudentAIReport(Base):
+    __tablename__ = "student_ai_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("students.id"), nullable=False, index=True)
+    model_name = Column(String(100), nullable=False)
+    report_json = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    student = relationship("Student", back_populates="ai_reports")
+
+
 class Concept(Base):
     __tablename__ = "concepts"
 

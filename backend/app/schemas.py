@@ -70,6 +70,36 @@ class StudentAiResponse(BaseModel):
     content: Dict[str, Any]
     model_name: str
 
+
+class StudentAiAttemptRequest(BaseModel):
+    interaction_id: Optional[int] = None
+    topic: Optional[str] = None
+    difficulty: Optional[str] = None
+    score: float
+    total_questions: int
+    result: Dict[str, Any] = Field(default_factory=dict)
+
+
+class StudentAiAttemptResponse(BaseModel):
+    id: int
+    student_id: int
+    topic: Optional[str]
+    difficulty: Optional[str]
+    score: float
+    total_questions: int
+    created_at: datetime
+
+
+class StudentAiReportResponse(BaseModel):
+    student_id: int
+    student_name: str
+    roll_number: str
+    interaction_count: int
+    attempt_count: int
+    report: Dict[str, Any]
+    model_name: str
+    created_at: datetime
+
 class ConceptMasteryItem(BaseModel):
     concept_id: int
     concept_name: str
