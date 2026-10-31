@@ -50,7 +50,6 @@ test('normalizeClassId: rejects DOM and React SyntheticBaseEvents', () => {
 });
 
 test('Class API methods: correctly normalize class objects and numeric IDs into valid endpoints', async () => {
-  // Mock global fetch to inspect URLs requested by API methods
   const requestedUrls: string[] = [];
   const originalFetch = globalThis.fetch;
 
@@ -92,13 +91,13 @@ test('Class API methods: correctly normalize class objects and numeric IDs into 
       assert.strictEqual(url.includes('[object%20Object]'), false, `URL must not contain [object%20Object]: ${url}`);
     }
 
-    assert.ok(requestedUrls.includes('http://127.0.0.1:8000/api/classes/1/analytics'));
-    assert.ok(requestedUrls.includes('http://127.0.0.1:8000/api/classes/1/students-needing-attention'));
-    assert.ok(requestedUrls.includes('http://127.0.0.1:8000/api/classes/1/students'));
+    assert.ok(requestedUrls.includes(`${API_BASE}/classes/1/analytics`));
+    assert.ok(requestedUrls.includes(`${API_BASE}/classes/1/students-needing-attention`));
+    assert.ok(requestedUrls.includes(`${API_BASE}/classes/1/students`));
 
-    assert.ok(requestedUrls.includes('http://127.0.0.1:8000/api/classes/2/analytics'));
-    assert.ok(requestedUrls.includes('http://127.0.0.1:8000/api/classes/3/students-needing-attention'));
-    assert.ok(requestedUrls.includes('http://127.0.0.1:8000/api/classes/4/students'));
+    assert.ok(requestedUrls.includes(`${API_BASE}/classes/2/analytics`));
+    assert.ok(requestedUrls.includes(`${API_BASE}/classes/3/students-needing-attention`));
+    assert.ok(requestedUrls.includes(`${API_BASE}/classes/4/students`));
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -129,8 +128,42 @@ test('Class API methods: reject event objects and prevent [object Object] reques
   );
 });
 
+test('Dataset API methods: correctly target centralized API_BASE without hardcoded localhost', async () => {
+  const requestedUrls: string[] = [];
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const urlStr = typeof input === 'string' ? input : input.toString();
+    requestedUrls.push(urlStr);
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ status: 'success', rows: 10 })
+    } as Response;
+  }) as typeof fetch;
+
+  try {
+    const fakeFile = new File(['roll_number,name\n1,Test'], 'test.csv', { type: 'text/csv' });
+    await api.validateDataset(fakeFile);
+    await api.uploadDataset(fakeFile);
+
+    assert.strictEqual(requestedUrls.length, 2);
+    assert.strictEqual(requestedUrls[0], `${API_BASE}/datasets/validate`);
+    assert.strictEqual(requestedUrls[1], `${API_BASE}/datasets/upload`);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('normalizeApiBaseUrl: correctly formats production VITE_API_URL and prevents duplicate /api', () => {
-  // Production with various URL formats
+  // Production with Render backend URL
+  assert.strictEqual(normalizeApiBaseUrl('https://adaptiveclass-ai.onrender.com', true), 'https://adaptiveclass-ai.onrender.com/api');
+  assert.strictEqual(normalizeApiBaseUrl('https://adaptiveclass-ai.onrender.com/', true), 'https://adaptiveclass-ai.onrender.com/api');
+  assert.strictEqual(normalizeApiBaseUrl('https://adaptiveclass-ai.onrender.com/api', true), 'https://adaptiveclass-ai.onrender.com/api');
+  assert.strictEqual(normalizeApiBaseUrl('https://adaptiveclass-ai.onrender.com/api/', true), 'https://adaptiveclass-ai.onrender.com/api');
+  assert.strictEqual(normalizeApiBaseUrl('  https://adaptiveclass-ai.onrender.com/api///  ', true), 'https://adaptiveclass-ai.onrender.com/api');
+
+  // Generic production URLs
   assert.strictEqual(normalizeApiBaseUrl('https://api.adaptiveclass.ai', true), 'https://api.adaptiveclass.ai/api');
   assert.strictEqual(normalizeApiBaseUrl('https://api.adaptiveclass.ai/', true), 'https://api.adaptiveclass.ai/api');
   assert.strictEqual(normalizeApiBaseUrl('https://api.adaptiveclass.ai/api', true), 'https://api.adaptiveclass.ai/api');

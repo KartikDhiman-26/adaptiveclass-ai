@@ -17,6 +17,16 @@ export interface ApiConfigDiagnostics {
 }
 
 /**
+ * In Vite production builds, `import.meta.env.PROD` is statically replaced with `true`,
+ * which allows bundlers to dead-code eliminate development-only fallback URLs.
+ */
+const DEV_DEFAULT_FALLBACK = (typeof import.meta !== 'undefined' && import.meta.env?.PROD)
+  ? '/api'
+  : (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production')
+    ? '/api'
+    : 'http://127.0.0.1:8000/api';
+
+/**
  * Normalizes the API base URL with strict production isolation:
  * - In production: uses VITE_API_URL, strips trailing slashes, ensures single '/api' suffix.
  * - In production: NEVER falls back to localhost or 127.0.0.1; defaults to relative '/api'.
@@ -45,24 +55,26 @@ export function normalizeApiBaseUrl(rawInput?: string, isProduction: boolean = f
     return '/api';
   }
 
-  return 'http://127.0.0.1:8000/api';
+  return DEV_DEFAULT_FALLBACK;
 }
 
 /**
  * Returns safe environment and API base URL configuration diagnostics without exposing secrets.
  */
 export function getApiConfigDiagnostics(): ApiConfigDiagnostics {
-  const env = (typeof import.meta !== 'undefined' && import.meta.env)
-    ? import.meta.env
-    : (typeof process !== 'undefined' && process.env ? process.env : {});
+  // Read directly from import.meta.env for static compile-time Vite replacement
+  const isProduction = typeof import.meta !== 'undefined' && import.meta.env
+    ? Boolean(import.meta.env.PROD || import.meta.env.MODE === 'production')
+    : (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production');
 
-  const mode = String(
-    env.MODE || (env.PROD ? 'production' : (typeof process !== 'undefined' && process.env?.NODE_ENV ? process.env.NODE_ENV : 'development'))
-  );
-  const isProduction = Boolean(
-    env.PROD || mode === 'production' || (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production')
-  );
-  const rawUrl = String(env.VITE_API_URL || '').trim();
+  const mode = typeof import.meta !== 'undefined' && import.meta.env
+    ? String(import.meta.env.MODE || (isProduction ? 'production' : 'development'))
+    : (typeof process !== 'undefined' && process.env?.NODE_ENV ? process.env.NODE_ENV : 'development');
+
+  const rawUrl = typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL !== undefined
+    ? String(import.meta.env.VITE_API_URL || '').trim()
+    : (typeof process !== 'undefined' && process.env?.VITE_API_URL ? String(process.env.VITE_API_URL).trim() : '');
+
   const isConfigured = Boolean(rawUrl);
   const apiBase = normalizeApiBaseUrl(rawUrl, isProduction);
 
@@ -98,7 +110,7 @@ if (typeof window !== 'undefined') {
   if (diag.isProduction) {
     if (diag.isConfigured) {
       console.info(
-        `%c[AdaptiveClass AI]%c Production API connected to %c${diag.sanitizedHost}%c (${diag.apiBase})`,
+        `%c[AdaptiveClass AI]%c Mode: ${diag.mode} | Target: %c${diag.sanitizedHost}%c (${diag.apiBase}) | VITE_API_URL: detected`,
         'background: #0f766e; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold;',
         'color: inherit; font-weight: bold;',
         'color: #0f766e; font-weight: bold;',
@@ -106,14 +118,14 @@ if (typeof window !== 'undefined') {
       );
     } else {
       console.warn(
-        `%c[AdaptiveClass AI]%c VITE_API_URL is not set in this production build. Requests will target relative '/api'. To connect to your external FastAPI backend, configure VITE_API_URL in your hosting provider dashboard (e.g. Vercel).`,
+        `%c[AdaptiveClass AI]%c Mode: ${diag.mode} | VITE_API_URL: not detected. Requests targeting relative '/api'. To connect to your external FastAPI backend, configure VITE_API_URL in your hosting provider dashboard (e.g. Vercel).`,
         'background: #dc2626; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold;',
         'color: #dc2626; font-weight: bold;'
       );
     }
   } else {
     console.info(
-      `%c[AdaptiveClass AI]%c Development API targeting local FastAPI at %c${diag.apiBase}%c`,
+      `%c[AdaptiveClass AI]%c Mode: ${diag.mode} | Local dev targeting: %c${diag.apiBase}%c`,
       'background: #d97706; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold;',
       'color: inherit;',
       'color: #d97706; font-weight: bold;',

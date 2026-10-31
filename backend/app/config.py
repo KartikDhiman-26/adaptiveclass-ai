@@ -46,7 +46,16 @@ CORS_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "https://adaptiveclass-ai.vercel.app",
 ]
+
+# Allow adding origins dynamically via ADDITIONAL_CORS_ORIGINS or CORS_ORIGINS
+raw_additional_origins = os.getenv("ADDITIONAL_CORS_ORIGINS") or os.getenv("CORS_ORIGINS")
+if raw_additional_origins:
+    for origin in raw_additional_origins.split(","):
+        origin_clean = origin.strip().rstrip("/")
+        if origin_clean and origin_clean not in CORS_ORIGINS:
+            CORS_ORIGINS.append(origin_clean)
 
 
 def get_gemini_status() -> Dict[str, Any]:
