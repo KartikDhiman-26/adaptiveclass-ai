@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeClassId, api } from './api.ts';
+import { normalizeClassId, api, normalizeApiBaseUrl, getApiConfigDiagnostics, API_BASE } from './api.ts';
 
 test('normalizeClassId: handles numeric IDs', () => {
   assert.strictEqual(normalizeClassId(1), 1);
@@ -127,4 +127,56 @@ test('Class API methods: reject event objects and prevent [object Object] reques
     },
     /Received DOM\/React Event object instead of class ID/
   );
+});
+
+test('normalizeApiBaseUrl: correctly formats production VITE_API_URL and prevents duplicate /api', () => {
+  // Production with various URL formats
+  assert.strictEqual(normalizeApiBaseUrl('https://api.adaptiveclass.ai', true), 'https://api.adaptiveclass.ai/api');
+  assert.strictEqual(normalizeApiBaseUrl('https://api.adaptiveclass.ai/', true), 'https://api.adaptiveclass.ai/api');
+  assert.strictEqual(normalizeApiBaseUrl('https://api.adaptiveclass.ai/api', true), 'https://api.adaptiveclass.ai/api');
+  assert.strictEqual(normalizeApiBaseUrl('https://api.adaptiveclass.ai/api/', true), 'https://api.adaptiveclass.ai/api');
+  assert.strictEqual(normalizeApiBaseUrl('  https://api.adaptiveclass.ai  ', true), 'https://api.adaptiveclass.ai/api');
+});
+
+test('normalizeApiBaseUrl: strictly prohibits localhost fallback in production mode', () => {
+  // 1. Missing or empty VITE_API_URL in production MUST NOT fall back to localhost
+  const emptyProd = normalizeApiBaseUrl('', true);
+  assert.strictEqual(emptyProd, '/api');
+  assert.strictEqual(emptyProd.includes('localhost'), false);
+  assert.strictEqual(emptyProd.includes('127.0.0.1'), false);
+
+  const undefinedProd = normalizeApiBaseUrl(undefined, true);
+  assert.strictEqual(undefinedProd, '/api');
+  assert.strictEqual(undefinedProd.includes('localhost'), false);
+  assert.strictEqual(undefinedProd.includes('127.0.0.1'), false);
+
+  // 2. Accidental localhost VITE_API_URL in production MUST be intercepted and blocked
+  const accidentalLocalhost = normalizeApiBaseUrl('http://localhost:8000', true);
+  assert.strictEqual(accidentalLocalhost, '/api');
+  assert.strictEqual(accidentalLocalhost.includes('localhost'), false);
+
+  const accidentalIp = normalizeApiBaseUrl('http://127.0.0.1:8000', true);
+  assert.strictEqual(accidentalIp, '/api');
+  assert.strictEqual(accidentalIp.includes('127.0.0.1'), false);
+});
+
+test('normalizeApiBaseUrl: uses localhost fallback ONLY in local development / test mode', () => {
+  // Development mode allows localhost fallback when unset
+  assert.strictEqual(normalizeApiBaseUrl('', false), 'http://127.0.0.1:8000/api');
+  assert.strictEqual(normalizeApiBaseUrl(undefined, false), 'http://127.0.0.1:8000/api');
+  assert.strictEqual(normalizeApiBaseUrl('http://127.0.0.1:8000', false), 'http://127.0.0.1:8000/api');
+  assert.strictEqual(normalizeApiBaseUrl('http://localhost:8000/', false), 'http://localhost:8000/api');
+});
+
+test('getApiConfigDiagnostics: generates safe, secret-free diagnostics', () => {
+  const diag = getApiConfigDiagnostics();
+  assert.ok(typeof diag.mode === 'string');
+  assert.ok(typeof diag.isProduction === 'boolean');
+  assert.ok(typeof diag.isConfigured === 'boolean');
+  assert.ok(typeof diag.apiBase === 'string');
+  assert.ok(typeof diag.sanitizedHost === 'string');
+
+  // Verify no sensitive tokens or query parameters leak into sanitized host
+  assert.strictEqual(diag.sanitizedHost.includes('?'), false);
+  assert.strictEqual(diag.sanitizedHost.includes('@'), false);
 });

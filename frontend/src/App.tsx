@@ -15,7 +15,7 @@ import {
   ClassAnalyticsResponse, StudentNeedingAttentionItem, 
   QuizSubmitResponse, SubjectSummary 
 } from './types';
-import { api, normalizeClassId, ClassIdentifier } from './api';
+import { api, normalizeClassId, ClassIdentifier, getApiConfigDiagnostics } from './api';
 import { subjectService } from './services/subjectService';
 import { Sparkles } from 'lucide-react';
 
@@ -106,7 +106,11 @@ export const App: React.FC = () => {
       }
     } catch (err) {
       console.error("Failed to load class analytics:", err);
-      showToast("Error connecting to backend or PostgreSQL. Ensure backend is running.");
+      const diag = getApiConfigDiagnostics();
+      const errorMsg = diag.isProduction && !diag.isConfigured
+        ? "Configuration required: VITE_API_URL is missing in this production deployment. Please configure it in your Vercel Dashboard."
+        : `Unable to connect to backend (${diag.sanitizedHost}). Please ensure the backend API is online.`;
+      showToast(errorMsg);
       const fallback = subjectService.getCurriculumSubjects([], null);
       setSubjects(fallback);
       setActiveStudentId(null);

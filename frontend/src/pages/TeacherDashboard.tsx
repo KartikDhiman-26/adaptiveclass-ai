@@ -92,7 +92,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           </div>
           <h2 className="text-xl font-bold text-stone-900">Unable to Load Classroom Analytics</h2>
           <p className="text-sm text-stone-600 max-w-md mx-auto">
-            Could not retrieve data from the backend or PostgreSQL instance. Please confirm the FastAPI server is running on port 8000.
+            Could not retrieve data from the backend API. Please confirm the FastAPI backend server is online and reachable.
           </p>
           <button
             onClick={() => onRefresh()}

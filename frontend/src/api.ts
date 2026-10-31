@@ -8,7 +8,119 @@ import type {
   StudentRecommendation
 } from './types.ts';
 
-const API_BASE = 'http://127.0.0.1:8000/api';
+export interface ApiConfigDiagnostics {
+  mode: string;
+  isProduction: boolean;
+  isConfigured: boolean;
+  apiBase: string;
+  sanitizedHost: string;
+}
+
+/**
+ * Normalizes the API base URL with strict production isolation:
+ * - In production: uses VITE_API_URL, strips trailing slashes, ensures single '/api' suffix.
+ * - In production: NEVER falls back to localhost or 127.0.0.1; defaults to relative '/api'.
+ * - In development: defaults to 'http://127.0.0.1:8000/api' if VITE_API_URL is unset.
+ */
+export function normalizeApiBaseUrl(rawInput?: string, isProduction: boolean = false): string {
+  const trimmed = (rawInput || '').trim();
+
+  if (trimmed) {
+    if (isProduction && (trimmed.includes('localhost') || trimmed.includes('127.0.0.1'))) {
+      console.error(
+        `[AdaptiveClass AI] INVALID CONFIGURATION: VITE_API_URL is set to a localhost address (${trimmed}) in production! ` +
+        `Browsers on deployed websites cannot reach localhost. Falling back to relative '/api'.`
+      );
+      return '/api';
+    }
+
+    const withoutTrailingSlash = trimmed.replace(/\/+$/, '');
+    if (withoutTrailingSlash.endsWith('/api')) {
+      return withoutTrailingSlash;
+    }
+    return `${withoutTrailingSlash}/api`;
+  }
+
+  if (isProduction) {
+    return '/api';
+  }
+
+  return 'http://127.0.0.1:8000/api';
+}
+
+/**
+ * Returns safe environment and API base URL configuration diagnostics without exposing secrets.
+ */
+export function getApiConfigDiagnostics(): ApiConfigDiagnostics {
+  const env = (typeof import.meta !== 'undefined' && import.meta.env)
+    ? import.meta.env
+    : (typeof process !== 'undefined' && process.env ? process.env : {});
+
+  const mode = String(
+    env.MODE || (env.PROD ? 'production' : (typeof process !== 'undefined' && process.env?.NODE_ENV ? process.env.NODE_ENV : 'development'))
+  );
+  const isProduction = Boolean(
+    env.PROD || mode === 'production' || (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production')
+  );
+  const rawUrl = String(env.VITE_API_URL || '').trim();
+  const isConfigured = Boolean(rawUrl);
+  const apiBase = normalizeApiBaseUrl(rawUrl, isProduction);
+
+  let sanitizedHost = 'relative (/api)';
+  if (apiBase.startsWith('http://') || apiBase.startsWith('https://')) {
+    try {
+      const parsed = new URL(apiBase);
+      sanitizedHost = parsed.host;
+    } catch {
+      sanitizedHost = 'unknown';
+    }
+  }
+
+  return {
+    mode,
+    isProduction,
+    isConfigured,
+    apiBase,
+    sanitizedHost
+  };
+}
+
+export function resolveApiBase(): string {
+  const diag = getApiConfigDiagnostics();
+  return diag.apiBase;
+}
+
+export const API_BASE = resolveApiBase();
+
+// Safe startup diagnostic (logged once on bundle load in browser)
+if (typeof window !== 'undefined') {
+  const diag = getApiConfigDiagnostics();
+  if (diag.isProduction) {
+    if (diag.isConfigured) {
+      console.info(
+        `%c[AdaptiveClass AI]%c Production API connected to %c${diag.sanitizedHost}%c (${diag.apiBase})`,
+        'background: #0f766e; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold;',
+        'color: inherit; font-weight: bold;',
+        'color: #0f766e; font-weight: bold;',
+        'color: #78716c;'
+      );
+    } else {
+      console.warn(
+        `%c[AdaptiveClass AI]%c VITE_API_URL is not set in this production build. Requests will target relative '/api'. To connect to your external FastAPI backend, configure VITE_API_URL in your hosting provider dashboard (e.g. Vercel).`,
+        'background: #dc2626; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold;',
+        'color: #dc2626; font-weight: bold;'
+      );
+    }
+  } else {
+    console.info(
+      `%c[AdaptiveClass AI]%c Development API targeting local FastAPI at %c${diag.apiBase}%c`,
+      'background: #d97706; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold;',
+      'color: inherit;',
+      'color: #d97706; font-weight: bold;',
+      'color: #78716c;'
+    );
+  }
+}
 
 export interface StudentTokenResponse {
   user_id: number;
@@ -97,7 +209,8 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     throw new Error(errorMsg);
   }
 
-  const url = `${API_BASE}${endpoint}`;
+  const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = `${API_BASE}${normalizedEndpoint}`;
   try {
     const res = await fetch(url, {
       ...options,
